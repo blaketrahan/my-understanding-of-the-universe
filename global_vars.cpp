@@ -24,7 +24,7 @@
 #include "stb_image.h"
 
 #include "b_memory.h"
-#include "b_vec.h"
+#include "vec.h"
 
 #define DEBUG_BUILD
 
