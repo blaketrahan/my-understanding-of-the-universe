@@ -71,6 +71,6 @@ struct IMAGE {
 	int x;
 	int y;
 	int n;
-} image_font;
+} field_image, marble_image;
 
-GLuint texture_font;
+GLuint field_texture, marble_texture;
