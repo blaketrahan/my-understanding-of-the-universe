@@ -7,6 +7,199 @@
 #include "render_functions.cpp"
 #include "input.cpp"
 
+struct RigidBody {
+    vec3 velocity;
+    vec3 pos = vec3(0.5f,0.0f,0.0f);
+    vec3 prev_pos = vec3(0.5f,0.0f,0.0f);
+
+    f4 radius = 0.1f;
+
+    // f4 momentum; /* how to use */
+    f4 mass = 10.0f; /* how to use */
+} marble, poolball, container;
+
+void reflect_circle_circle (RigidBody &A, RigidBody &B)
+{
+    /*
+        2D or 3D
+        Source: https://www.gamasutra.com/view/feature/131424/pool_hall_lessons_fast_accurate_.php
+    */
+    /*
+        Normalized vector N from pos A to pos B
+    */
+    vec3 N = B.pos - A.pos;
+    N = N.normal();
+    /*
+        Find the length of the component of each velocity vector
+        along the N (the normal running through the collision point)
+    */
+    f4 component_length_A = A.velocity.dot(N);
+    f4 component_length_B = B.velocity.dot(N);
+
+    /*
+        Using the optimized version, 
+        optimizedP =  2(a1 - a2)
+                     ------------
+                     mass1 + mass2
+        P = magnitude of the change in the momentums of the circles before and after
+    */
+    f4 P = (2.0f * (component_length_A - component_length_B)) / (A.mass + B.mass);
+
+    /*
+        Calculate new velocites 
+    */    
+    vec3 v1_after = A.velocity - (N * (P * B.mass));
+    vec3 v2_after = B.velocity + (N * (P * A.mass));
+
+    /*
+        Apply changes.
+    */
+    A.velocity = v1_after;
+    B.velocity = v2_after;
+}
+
+b4 detect_collision_circle_circle_stationary (RigidBody A, RigidBody B)
+{
+    /*
+        2D or 3D
+        Source: https://www.gamasutra.com/view/feature/131424/pool_hall_lessons_fast_accurate_.php
+    */
+    f8 x = A.pos.x - B.pos.x;
+    x *= x;
+    f8 z = A.pos.z - B.pos.z;
+    z *= z;
+
+    f8 r = A.radius + B.radius; 
+    r *= r;
+
+    return (x + z <= r);
+}
+
+b4 detect_and_apply_collision_circle_circle_moving (RigidBody &A, RigidBody &B)
+{
+    /*
+        2D or 3D
+        Source: https://www.gamasutra.com/view/feature/131424/pool_hall_lessons_fast_accurate_.php
+        
+        See references/circle-circle-collision.jpg
+            references/circle-circle-collision-B.jpg
+    */
+
+    /*
+        subtract velocity B from A, so that B is treated as stationary
+    */
+    vec3 A_combined_velocity = A.velocity - B.velocity;
+
+    /*
+        is velocity less than distance between A and B
+    */
+    f4 dist = distance_between(B.pos, A.pos);
+    f4 r = (B.radius + A.radius);
+    dist -= r;
+    if (A_combined_velocity.length() < dist) return false;
+
+    /*
+        @todo: I don't understand why the normal rather than velocity is used.
+    */
+    vec3 N = A_combined_velocity.normal();
+
+    /*
+        vector C: A center to B center
+    */
+    vec3 C = B.pos - A.pos;
+
+    /* 
+        dot product: project vector N onto C, returns scalar value
+        describing how much of N projects onto C
+        if the value is <= 0, then N does not project onto C at all
+        aka, the N is not moving toward C
+        D = N . C = |C| * cos(angle between N and C)
+    */
+    f4 D = N.dot(C);
+    if (D <= 0) { return false; }
+
+    /* 
+        F = |C| - dot product 
+        F = Distance to C - Distance on C that A will travel
+        Square these values so not to use squareroot
+        Cannot collide if the difference is greater than their radii
+    */
+    f4 length_c = C.length();
+    f4 F = (length_c * length_c) - (D * D);
+    f4 rr = r * r;
+    if (F >= rr) { return false; }
+
+    /*
+        F and rr make two sides of a right triangle. 
+        The third side (T) being parallel to A_combined_velocity
+        (if the collision exists)
+    */
+    f4 T = rr - F;
+
+    /*
+        If there is no such right triangle with sides length of 
+        rr and sqrt(F), T will probably be less than 0.  
+    */
+    if (T < 0) { return false; }
+
+    /*
+        Therefore the distance the circle has to travel along 
+        A_combined_velocity is D - sqrt(T)
+    */
+    f4 distance = D - sqrt(T);
+
+    /*
+        Get the length of the original velocity vector.
+        Finally, the corrected velocity vector must be shorter
+        than the original velocity vector.
+    */
+    f4 mag = A_combined_velocity.length();
+    if (mag < distance) { return false; }
+
+    /*
+        If the two bodies should not reflect, then
+        calculate the collision time and apply changes.
+
+        if (A.velocity.has_length() && B.velocity.has_length())
+        {
+            // 2 moving circles
+            f4 collision_time = A_combined_velocity.length() / A.velocity.length();
+            A.velocity = A.velocity * collision_time;
+            B.velocity = B.velocity * collision_time;
+        }
+        else {
+            // 1 moving circle 1 stationary circle
+            A.velocity = A_combined_velocity.normal() * distance;
+        }
+        
+        Else, reflect the two bodies.
+    */
+    reflect_circle_circle(A,B);
+
+    return true;
+}
+
+f4 calculate_kinetic_energy (RigidBody* bodies, u4 count)
+{
+    /*
+        Calculate kinetic energy in system.
+        Don't forget to remove friction when checking for conservation.
+    */
+    f4 joules = 0.0f;
+    for (u4 i = 0; i < count; i++)
+    {
+        // KE = 0.5f * (M * V)^2
+        f4 mv = bodies[i].mass * bodies[i].velocity.length();
+        joules += 0.5f * (mv * mv);
+    }
+    return joules;
+}
+
+b4 detect_and_apply_collision_circle_line () {
+    // https://www.youtube.com/watch?v=_3dRFu3k8Nw
+    // http://ericleong.me/research/circle-line/
+}
+
 int main(int argc, char* argv[]) {
 	initialize_memory(memory, 8);
 	
@@ -37,16 +230,15 @@ int main(int argc, char* argv[]) {
 	f4 cam_radius = 8.0f;
 	vec3 camera_pos = vec3(0.0f,0.0f,0.0f);
 
-    struct RigidBody {
-        vec3 velocity;
-        vec3 pos = vec3(0.5f,0.0f,0.0f);
-        vec3 prev_pos = vec3(0.5f,0.0f,0.0f);
+    container.radius = 1.0f;
+    container.pos.x = 0.0f;
+    container.prev_pos.x = 0.0f;
 
-        f4 radius = 0.1f;
-
-        f4 momentum; /* how to use */
-        f4 mass = 10.0f;
-    } body;
+    poolball.pos.x = -0.5f;
+    poolball.prev_pos.x = -0.5f;
+    poolball.pos.z = -0.05f;
+    poolball.prev_pos.z = -0.05f;
+    poolball.velocity.x = 0.025f;
 	
     u4 step = 0;
 
@@ -79,7 +271,7 @@ int main(int argc, char* argv[]) {
 
             struct Force {
                 vec3 dir;
-                f4 magnitude = 1.0f * 0.075f;
+                f4 length = 1.0f * 0.075f;
             } force;
 
             // get user input
@@ -90,46 +282,24 @@ int main(int argc, char* argv[]) {
 
             force.dir = force.dir.normal();
 
-            body.prev_pos = body.pos;
+            auto step = [ground_friction] (RigidBody &body) {
+                body.prev_pos = body.pos;
 
-            // calculate velocity
-            body.velocity = body.velocity + (force.dir * force.magnitude);
+                // calculate velocity
+                body.velocity = body.velocity + (force.dir * force.length);
 
-            // apply friction
-            body.velocity = body.velocity * ground_friction;
+                // apply friction
+                body.velocity = body.velocity * ground_friction;
+            };
 
-            // next pos
-            vec3 future_pos = body.pos + body.velocity;
+            step(marble);
+            step(poolball);
 
-            // contained circle vs outer circle collision
-            f4 dist = sqrt((future_pos.x * future_pos.x) + (future_pos.z * future_pos.z));
-
-            // @todo: convert this to general case
-            // reflect_circle_off_line(Velocity, PoC, LineNormal)
-            // https://stackoverflow.com/questions/573084/how-to-calculate-bounce-angle
-
-            if (dist >= 1.0f - body.radius)
-            {
-                // Point of Contact: shorten future position by the amount it exceeded the outer circle
-                vec3 PoC = future_pos;
-                PoC.x *= ((1.0f - body.radius) / dist);
-                PoC.z *= ((1.0f - body.radius) / dist);
-
-                // ( pointing inward to (0,0) )
-                vec3 N = vec3(-PoC.x, PoC.y, -PoC.z).normal();
-
-                f4 SP = body.velocity.dot(N);
-
-                vec3 U = N * SP;
-                vec3 W = body.velocity - U;
-
-                // get new delta from point of contact
-                body.velocity = W - U;
-                future_pos = body.pos + body.velocity;
-            }
+            b4 intersected = detect_and_apply_collision_circle_circle_moving(marble, poolball);
 
             // apply changes
-            body.pos = future_pos;
+            marble.pos = marble.pos + marble.velocity;
+            poolball.pos = poolball.pos + poolball.velocity;
 		}
 
         f4 alpha = physics_dt / PHYSICS_MS;
@@ -160,13 +330,21 @@ int main(int argc, char* argv[]) {
 			state.view = view;
 			state.projection = projection;
 			state.world = pp;
-			state.texture = field_texture;
 			state.scale = vec3(1.0f,1.0f,1.0f);
 			state.rotation.x = 90.0f * M_DEGTORAD32;
+
+            state.world = container.prev_pos.lerp(container.pos, alpha);
+            state.scale = vec3(container.radius,container.radius,1);
+            state.texture = field_texture;
 			render_plane(state);
 
-            state.world = body.prev_pos.lerpto(body.pos, alpha);
-            state.scale = vec3(body.radius,body.radius,1);
+            state.world = poolball.prev_pos.lerp(poolball.pos, alpha);
+            state.scale = vec3(poolball.radius,poolball.radius,1);
+            state.texture = marble_texture;
+            render_plane(state);
+
+            state.world = marble.prev_pos.lerp(marble.pos, alpha);
+            state.scale = vec3(marble.radius,marble.radius,1);
             state.texture = marble_texture;
             render_plane(state);
 

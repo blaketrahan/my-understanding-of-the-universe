@@ -56,7 +56,7 @@ typedef struct vec3
 {
     f4 x,y,z;
 
-    vec3(f4 mx = 0.0f, f4 my = 0.0f, f4 mz = 0.0f)
+    vec3 (f4 mx = 0.0f, f4 my = 0.0f, f4 mz = 0.0f)
         : x(mx),y(my), z(mz) {}
 
     inline vec3 operator + ( const vec3 &v )
@@ -83,7 +83,7 @@ typedef struct vec3
         result.z = z * scalar;
         return result;
     }
-    inline vec3 normal()
+    inline vec3 normal ()
     {
         f4 magnitude = sqrt((x * x) + (y * y) + (z * z));
         if (magnitude == 0.0f)
@@ -94,19 +94,48 @@ typedef struct vec3
             return vec3(x / magnitude, y / magnitude, z / magnitude);
         }
     }
-    inline f4 dot(vec3 v)
+    inline f4 length ()
+    {
+        return sqrt((x * x) + (y * y) + (z * z));
+    }
+    inline f4 dot (vec3 v)
     {
         return (x * v.x) + (y * v.y) + (z * v.z);
     }
-    inline vec3 lerpto(vec3 target, f4 alpha)
+    inline vec3 lerp (vec3 target, f4 alpha)
     {
         return (target * alpha) + (vec3(x,y,z) * (1.0f - alpha));
+    }
+    inline b4 has_length () {
+        return x == 0.0f && y == 0.0f && z == 0.0f;
     }
 } vec3;
 
 inline void print(vec3 v)
 {
     std::cout << "(" << v.x << ", " << v.y << ", " << v.z << ")" << std::endl;
+}
+
+inline f4 distance_from_origin (vec3 v) {
+    return sqrt((v.x * v.x) + (v.y * v.y) + (v.z * v.z));
+}
+
+inline f4 distance_between (vec3 a, vec3 b) {
+    return sqrt(((b.x - a.x) * (b.x - a.x)) + ((b.y - a.y) * (b.y - a.y)) + ((b.z - a.z) * (b.z - a.z)));
+}
+/* collisions */
+
+inline vec3 reflect_circle_line ( vec3 circle_velocity, vec3 PoC, vec3 surface_normal )
+{
+    /* Assumes unit circle */
+    
+    // https://stackoverflow.com/questions/573084/how-to-calculate-bounce-angle
+    f4 scalar_product = circle_velocity.dot(surface_normal);
+
+    vec3 U = surface_normal * scalar_product;
+    vec3 W = circle_velocity - U;
+
+    return W - U;
 }
 
 #endif
