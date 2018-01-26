@@ -107,7 +107,7 @@ typedef struct vec3
         return (target * alpha) + (vec3(x,y,z) * (1.0f - alpha));
     }
     inline b4 has_length () {
-        return x == 0.0f && y == 0.0f && z == 0.0f;
+        return x != 0.0f || y != 0.0f || z != 0.0f;
     }
 } vec3;
 

@@ -14,14 +14,22 @@ struct RigidBody {
 
     f4 radius = 0.1f;
 
-    // f4 momentum; /* how to use */
-    f4 mass = 10.0f; /* how to use */
+    f4 mass = 10.0f;
+
+    /*
+        Collision information
+    */
+    vec3 PoC;
 } marble, poolball, container;
 
 void reflect_circle_circle (RigidBody &A, RigidBody &B)
 {
     /*
         2D or 3D
+
+        Collision resolution between:
+            1) Two circles, regardless of motion.
+
         Source: https://www.gamasutra.com/view/feature/131424/pool_hall_lessons_fast_accurate_.php
     */
     /*
@@ -62,6 +70,10 @@ b4 detect_collision_circle_circle_stationary (RigidBody A, RigidBody B)
 {
     /*
         2D or 3D
+
+        Detect collision only of:
+            1) two stationary circles
+
         Source: https://www.gamasutra.com/view/feature/131424/pool_hall_lessons_fast_accurate_.php
     */
     f8 x = A.pos.x - B.pos.x;
@@ -75,10 +87,15 @@ b4 detect_collision_circle_circle_stationary (RigidBody A, RigidBody B)
     return (x + z <= r);
 }
 
-b4 detect_and_apply_collision_circle_circle_moving (RigidBody &A, RigidBody &B)
+b4 detect_and_apply_collision_circle_circle (RigidBody &A, RigidBody &B)
 {
     /*
         2D or 3D
+
+        Detect collision and correct velocities of:
+            1) one moving circle against one stationary circle
+            2) two moving circles
+
         Source: https://www.gamasutra.com/view/feature/131424/pool_hall_lessons_fast_accurate_.php
         
         See references/circle-circle-collision.jpg
@@ -195,9 +212,69 @@ f4 calculate_kinetic_energy (RigidBody* bodies, u4 count)
     return joules;
 }
 
-b4 detect_and_apply_collision_circle_line () {
-    // https://www.youtube.com/watch?v=_3dRFu3k8Nw
-    // http://ericleong.me/research/circle-line/
+b4 calculate_PoC_circle_in_circle_minkowski_difference (RigidBody &B, RigidBody &A)
+{
+    if (B.velocity.has_length() == false) return false;
+    /*
+        B is smaller inner circle
+        A is larger containing circle
+
+        C is B's next position
+
+        This calculates B's point of contact on A along it's velocity vector,
+        but does not alter velocity.
+
+        Sources:
+            Casey Muratori, "Implementing GJK - 2006", 7 min 55 sec
+            https://www.youtube.com/watch?v=Qupqu1xe7Io
+            
+            Sam Hocevar
+            https://gamedev.stackexchange.com/questions/29650/circle-inside-circle-collision
+
+        Additional reading:
+            https://en.wikipedia.org/wiki/Minkowski_addition#Convex_hulls_of_Minkowski_sums
+            https://wildbunny.co.uk/blog/2011/04/20/collision-detection-for-dummies/
+    */
+    f4 R = A.radius;
+    f4 r = B.radius;
+
+    vec3 C_pos = B.pos + B.velocity;
+    
+    vec3 AC = C_pos - A.pos;
+
+    if (AC.length() < R - r) {
+        return false;
+    }
+
+    vec3 AB = B.pos - A.pos;
+    vec3 BC = C_pos - B.pos; 
+
+    f4 BC2 = BC.length();
+    BC2 *= BC2;
+
+    f4 AB2 = AB.length();
+    AB2 *= AB2;
+
+    f4 Rr2 = (R - r) * (R - r);
+
+    f4 b = ( AB.dot(BC) / BC2 ) * -1.0f;
+    f4 c = (AB2 - Rr2) / BC2;
+    f4 d = b * b - c;
+    f4 k = b - sqrt(d);
+    if (k < 0)
+        k = b + sqrt(d);
+    if (k < 0)
+    {
+        // cout << "No solution: " << endl;
+    }
+    else
+    {
+        // cout << "K: " << k << endl;;
+        // print(B.pos + (BC * k)); 
+        B.PoC = (B.velocity * k) + (B.velocity.normal() * B.radius); 
+    }
+
+    return true;
 }
 
 int main(int argc, char* argv[]) {
@@ -252,7 +329,7 @@ int main(int argc, char* argv[]) {
             frame_time = 0.064f;
         }
 
-        // frame_time *= 0.5f;
+        // frame_time *= 0.15f;
 
 		poll_events();
 
@@ -267,22 +344,23 @@ int main(int argc, char* argv[]) {
 			camera_pos.z = ((camera_pos.z * (W - 1)) + 0) / W;
             
             // apply friction
-            const f4 ground_friction = 0.985f;
+            const f4 ground_friction = 1.0f; //0.985f;
 
             struct Force {
                 vec3 dir;
                 f4 length = 1.0f * 0.075f;
-            } force;
+            } marble_force, poolball_force;
 
             // get user input
-            if (single_press(input.d)) { force.dir.x =  1.0f; }
-            if (single_press(input.a)) { force.dir.x = -1.0f; }
-            if (single_press(input.w)) { force.dir.z =  1.0f; }
-            if (single_press(input.s)) { force.dir.z = -1.0f; }
+            if (single_press(input.d)) { marble_force.dir.x =  1.0f; }
+            if (single_press(input.a)) { marble_force.dir.x = -1.0f; }
+            if (single_press(input.w)) { marble_force.dir.z =  1.0f; }
+            if (single_press(input.s)) { marble_force.dir.z = -1.0f; }
 
-            force.dir = force.dir.normal();
+            marble_force.dir = marble_force.dir.normal();
+            poolball_force.length = 0.0f;
 
-            auto step = [ground_friction] (RigidBody &body) {
+            auto step = [ground_friction] (RigidBody &body, Force force) {
                 body.prev_pos = body.pos;
 
                 // calculate velocity
@@ -292,14 +370,31 @@ int main(int argc, char* argv[]) {
                 body.velocity = body.velocity * ground_friction;
             };
 
-            step(marble);
-            step(poolball);
+            step(marble, marble_force);
+            step(poolball, poolball_force);
 
-            b4 intersected = detect_and_apply_collision_circle_circle_moving(marble, poolball);
+            // b4 intersected = detect_collision_circle_circle_minkowski(marble, poolball);
+
+            // b4 intersected = detect_and_apply_collision_circle_circle(marble, poolball);
+
+            b4 intersected = calculate_PoC_circle_in_circle_minkowski_difference (marble, container);
+            b4 intersected2 = calculate_PoC_circle_in_circle_minkowski_difference (poolball, container);
+
+            /*
+                REFLECT POINT OFF LINE (aka inner circle off outer circle tangent) WALL
+            */
+            if (intersected) {
+                /*
+                    https://stackoverflow.com/questions/573084/how-to-calculate-bounce-angle
+                */
+            }
 
             // apply changes
-            marble.pos = marble.pos + marble.velocity;
+            marble.pos = marble.pos + marble.velocity; 
             poolball.pos = poolball.pos + poolball.velocity;
+            if (intersected2) {
+                poolball.velocity = vec3();
+            }
 		}
 
         f4 alpha = physics_dt / PHYSICS_MS;
@@ -334,19 +429,25 @@ int main(int argc, char* argv[]) {
 			state.rotation.x = 90.0f * M_DEGTORAD32;
 
             state.world = container.prev_pos.lerp(container.pos, alpha);
-            state.scale = vec3(container.radius,container.radius,1);
+            state.scale = vec3(container.radius,container.radius,1.0f);
             state.texture = field_texture;
 			render_plane(state);
 
-            state.world = poolball.prev_pos.lerp(poolball.pos, alpha);
-            state.scale = vec3(poolball.radius,poolball.radius,1);
+            state.world = poolball.pos;//poolball.prev_pos.lerp(poolball.pos, alpha);
+            state.scale = vec3(poolball.radius,poolball.radius,1.0f);
             state.texture = marble_texture;
             render_plane(state);
 
             state.world = marble.prev_pos.lerp(marble.pos, alpha);
-            state.scale = vec3(marble.radius,marble.radius,1);
+            state.scale = vec3(marble.radius,marble.radius,1.0f);
             state.texture = marble_texture;
             render_plane(state);
+
+            // state.world = vec3(0.99861, 0, -0.05);
+            // // state.world = vec3(0.89861, 0, -0.05);
+            // state.scale = vec3(0.01f,0.01f,1.0f);
+            // state.texture = marble_texture;
+            // render_plane(state);
 
 			SDL_GL_SwapWindow(sgl.window);
 		}
