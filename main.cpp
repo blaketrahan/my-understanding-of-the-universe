@@ -9,17 +9,20 @@
 
 struct RigidBody {
     vec3 velocity;
-    vec3 pos = vec3(0.5f,0.0f,0.0f);
-    vec3 prev_pos = vec3(0.5f,0.0f,0.0f);
+    vec3 pos = vec3(0.5f,0.0f,0.0f); /* GLOBAL */
+    vec3 prev_pos = vec3(0.5f,0.0f,0.0f); /* GLOBAL */
 
     f4 radius = 0.1f;
 
     f4 mass = 10.0f;
+    f4 restitution = 0.75f;
+    f4 friction = 0.75f;
 
     /*
         Collision information
     */
-    vec3 PoC;
+    vec3 PoC; /* LOCAL */
+    vec3 PoC_on_radius; /* LOCAL */
 } marble, poolball, container;
 
 void reflect_circle_circle (RigidBody &A, RigidBody &B)
@@ -246,6 +249,10 @@ b4 calculate_PoC_circle_in_circle_minkowski_difference (RigidBody &B, RigidBody 
         return false;
     }
 
+    /*
+        @todo: Understand this series of equations better.
+    */
+
     vec3 AB = B.pos - A.pos;
     vec3 BC = C_pos - B.pos; 
 
@@ -269,12 +276,62 @@ b4 calculate_PoC_circle_in_circle_minkowski_difference (RigidBody &B, RigidBody 
     }
     else
     {
-        // cout << "K: " << k << endl;;
-        // print(B.pos + (BC * k)); 
-        B.PoC = (B.velocity * k) + (B.velocity.normal() * B.radius); 
+        B.PoC = (B.velocity * k);
+        B.PoC_on_radius = B.PoC + (AB.normal() * B.radius);
     }
 
     return true;
+}
+
+void reflect_circle_within_cirle (RigidBody &A, vec3 container_position)
+{
+    /*
+        2D or 3D
+        Assumes intersection has already been found.
+        Source: Gareth Rees,
+            https://stackoverflow.com/questions/573084/how-to-calculate-bounce-angle
+
+        @todo: How does the container friction and restitution into this
+
+        @todo: Change this to reflect vector off line.
+            reflect_vector_off_line (&velocity, line.pos, line.normal, friction, restitution)
+    */
+    vec3 V = A.velocity;
+
+    /*
+        N : Normal of surface with length of 1
+            at the position of contact
+    */
+    vec3 N = vec3(container_position - (A.pos + A.PoC)).normal();
+
+    /*  
+        Split velocity into two components:
+        U : perpendicular to the surface
+        W : parallel with surface
+    */
+    vec3 U = N * V.dot(N);
+    vec3 W = V - U;
+
+    /*
+        Calcuate the reflected vector with friction and restitution
+    */
+    V = (W * A.friction) - (U * A.restitution);
+
+    /*
+        @todo: Clean this up, get rid of all the sqrt()
+        Calculate energy lost and new velocity.
+    */
+    f4 traveled = A.PoC.length();
+    f4 needs_to_travel = A.velocity.length();
+    f4 remaining = needs_to_travel - traveled;
+
+    f4 energy_remaining = V.length() / needs_to_travel;
+
+    remaining *= energy_remaining;
+
+    A.pos = A.pos + A.PoC + (V.normal() * remaining);
+
+    A.velocity = V.normal() * (A.velocity.length() * energy_remaining);
 }
 
 int main(int argc, char* argv[]) {
@@ -296,6 +353,10 @@ int main(int argc, char* argv[]) {
     marble_texture = 0;
     marble_image.data = stbi_load("media/marble.png", &marble_image.x, &marble_image.y, &marble_image.n, 4);
     marble_texture = my_create_texture(256,256,true,marble_image.data,false,marble_image.n);
+
+    future_texture = 0;
+    future_image.data = stbi_load("media/future.png", &future_image.x, &future_image.y, &future_image.n, 4);
+    future_texture = my_create_texture(256,256,true,future_image.data,false,future_image.n);
 
 	// loop
 	const f4 RENDER_MS = 1.0f/60.0f;
@@ -344,7 +405,7 @@ int main(int argc, char* argv[]) {
 			camera_pos.z = ((camera_pos.z * (W - 1)) + 0) / W;
             
             // apply friction
-            const f4 ground_friction = 1.0f; //0.985f;
+            const f4 ground_friction = 0.985f;
 
             struct Force {
                 vec3 dir;
@@ -373,30 +434,30 @@ int main(int argc, char* argv[]) {
             step(marble, marble_force);
             step(poolball, poolball_force);
 
-            // b4 intersected = detect_collision_circle_circle_minkowski(marble, poolball);
-
-            // b4 intersected = detect_and_apply_collision_circle_circle(marble, poolball);
+            b4 intersected_each_other = detect_and_apply_collision_circle_circle(marble, poolball);
 
             b4 intersected = calculate_PoC_circle_in_circle_minkowski_difference (marble, container);
             b4 intersected2 = calculate_PoC_circle_in_circle_minkowski_difference (poolball, container);
-
-            /*
-                REFLECT POINT OFF LINE (aka inner circle off outer circle tangent) WALL
-            */
-            if (intersected) {
-                /*
-                    https://stackoverflow.com/questions/573084/how-to-calculate-bounce-angle
-                */
+            
+            if (intersected)
+            {
+                reflect_circle_within_cirle(marble, container.pos);
+            }
+            else
+            {
+                marble.pos = marble.pos + marble.velocity;
             }
 
-            // apply changes
-            marble.pos = marble.pos + marble.velocity; 
-            poolball.pos = poolball.pos + poolball.velocity;
-            if (intersected2) {
-                poolball.velocity = vec3();
+            if (intersected2)
+            {
+                reflect_circle_within_cirle(poolball, container.pos);
+            }
+            else
+            {
+                poolball.pos = poolball.pos + poolball.velocity;
             }
 		}
-
+        // cout << "  " << marble.velocity.length() << endl;
         f4 alpha = physics_dt / PHYSICS_MS;
 
 		render_dt += frame_time;
@@ -433,7 +494,7 @@ int main(int argc, char* argv[]) {
             state.texture = field_texture;
 			render_plane(state);
 
-            state.world = poolball.pos;//poolball.prev_pos.lerp(poolball.pos, alpha);
+            state.world = poolball.prev_pos.lerp(poolball.pos, alpha);
             state.scale = vec3(poolball.radius,poolball.radius,1.0f);
             state.texture = marble_texture;
             render_plane(state);
@@ -442,12 +503,6 @@ int main(int argc, char* argv[]) {
             state.scale = vec3(marble.radius,marble.radius,1.0f);
             state.texture = marble_texture;
             render_plane(state);
-
-            // state.world = vec3(0.99861, 0, -0.05);
-            // // state.world = vec3(0.89861, 0, -0.05);
-            // state.scale = vec3(0.01f,0.01f,1.0f);
-            // state.texture = marble_texture;
-            // render_plane(state);
 
 			SDL_GL_SwapWindow(sgl.window);
 		}
@@ -458,6 +513,8 @@ int main(int argc, char* argv[]) {
 	glDeleteTextures(1,&field_texture);
     stbi_image_free(marble_image.data);
     glDeleteTextures(1,&marble_texture);
+    stbi_image_free(future_image.data);
+    glDeleteTextures(1,&future_texture);
 	
 	glDeleteProgram(basic_texture.program);
 	glDeleteBuffers(1, &plane.verts);
