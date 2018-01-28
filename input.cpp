@@ -30,6 +30,7 @@ struct MYINPUT
 {
     b4 quit_app;
     SinglePress w,a,s,d;
+    b4 right, left, up, down;
 } input;
 
 inline void poll_events()
@@ -49,6 +50,10 @@ inline void poll_events()
             case SDLK_a: input.a.pressed = true; break;
             case SDLK_s: input.s.pressed = true; break;
             case SDLK_d: input.d.pressed = true; break;
+            case SDLK_RIGHT: input.right = true; break;
+            case SDLK_LEFT: input.left = true; break;
+            case SDLK_UP: input.up = true; break;
+            case SDLK_DOWN: input.down = true; break;
             case SDLK_ESCAPE: input.quit_app = true; break;
         }
       }
@@ -60,6 +65,10 @@ inline void poll_events()
             case SDLK_a: input.a.pressed = false; break;
             case SDLK_s: input.s.pressed = false; break;
             case SDLK_d: input.d.pressed = false; break;
+            case SDLK_RIGHT: input.right = false; break;
+            case SDLK_LEFT: input.left = false; break;
+            case SDLK_UP: input.up = false; break;
+            case SDLK_DOWN: input.down = false; break;
             case SDLK_ESCAPE: input.quit_app = false; break;
         }
       }

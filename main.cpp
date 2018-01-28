@@ -335,7 +335,7 @@ void reflect_circle_within_cirle (RigidBody &A, vec3 container_position)
 }
 
 int main(int argc, char* argv[]) {
-	initialize_memory(memory, 8);
+	initialize_memory(memory, 8, 2);
 	
 	if (!create_sgl()) 
     { 
@@ -345,6 +345,10 @@ int main(int argc, char* argv[]) {
 	create_plane();
 
 	if (!create_basic_texture_shader()) return 0;
+    if (!create_basic_shader()) return 0;
+
+    OBJ icosphere;
+    if (!load_obj("media/icosphere.obj", icosphere)) return 0;
 
 	field_texture = 0;
 	field_image.data = stbi_load("media/circle.png", &field_image.x, &field_image.y, &field_image.n, 4);
@@ -365,8 +369,8 @@ int main(int argc, char* argv[]) {
 	f4 physics_dt = 0.0f;
 	u4 time_physics_prev = SDL_GetTicks();
 	f4 camera_angle = M_PI32/-2.0f;
-	f4 cam_radius = 8.0f;
-	vec3 camera_pos = vec3(0.0f,0.0f,0.0f);
+	f4 cam_radius = 3.0f;
+	vec3 camera_pos = vec3();
 
     container.radius = 1.0f;
     container.pos.x = 0.0f;
@@ -398,6 +402,12 @@ int main(int argc, char* argv[]) {
 		while (physics_dt >= PHYSICS_MS)
 		{
 			physics_dt -= PHYSICS_MS;
+
+            if (input.right) { camera_angle -= M_PI32 * 0.01f; }
+            if (input.left)  { camera_angle += M_PI32 * 0.01f; }
+
+            if (input.up)    { cam_radius -= M_PI32 * 0.01f; }
+            if (input.down)  { cam_radius += M_PI32 * 0.01f; }
 
 			f4 W = 20.0f;
 			camera_pos.x = ((camera_pos.x * (W - 1)) + 0) / W;
@@ -434,12 +444,11 @@ int main(int argc, char* argv[]) {
             step(marble, marble_force);
             step(poolball, poolball_force);
 
-            b4 intersected_each_other = detect_and_apply_collision_circle_circle(marble, poolball);
+            // marble + poolball
+            detect_and_apply_collision_circle_circle(marble, poolball);
 
-            b4 intersected = calculate_PoC_circle_in_circle_minkowski_difference (marble, container);
-            b4 intersected2 = calculate_PoC_circle_in_circle_minkowski_difference (poolball, container);
-            
-            if (intersected)
+            // marble + container
+            if (calculate_PoC_circle_in_circle_minkowski_difference (marble, container))
             {
                 reflect_circle_within_cirle(marble, container.pos);
             }
@@ -448,7 +457,8 @@ int main(int argc, char* argv[]) {
                 marble.pos = marble.pos + marble.velocity;
             }
 
-            if (intersected2)
+            // poolball + container
+            if (calculate_PoC_circle_in_circle_minkowski_difference (poolball, container))
             {
                 reflect_circle_within_cirle(poolball, container.pos);
             }
@@ -464,18 +474,18 @@ int main(int argc, char* argv[]) {
 		// if (render_dt >= RENDER_MS)
 		{
 			render_dt = 0;
-		
-			glm::vec3 up_axis(0, 0, 1); 
 
-			f4 posX = cam_radius * cos(camera_angle); 
-    		f4 posY = cam_radius * sin(camera_angle); 
+			// f4 posX = cam_radius * cos(camera_angle);
+    		// f4 posZ = cam_radius * sin(camera_angle);
 
-    		vec3 pp = camera_pos; // center of world
+            vec3 pp = camera_pos + vec3(0.0f, -cam_radius, 0.0f);
+            vec3 lookat = camera_pos;
 
 			glm::mat4 view = glm::lookAt(
-				glm::vec3(pp.x,pp.y-3,pp.z), // pos
-				glm::vec3(pp.x,pp.y,pp.z), // lookat
-				glm::vec3(0.0f, 0.0f, 1.0f)); // up
+				glm::vec3(pp.x,pp.y-3,pp.z),
+				glm::vec3(lookat.x, lookat.y, lookat.z),
+				glm::vec3(0.0f, 0.0f, 1.0f));
+
 			glm::mat4 projection = glm::perspective(45.0f, 1.0f*sgl.width/sgl.height, 0.1f, 100.0f);
 
 		   	glBindFramebuffer(GL_FRAMEBUFFER,0);
@@ -489,26 +499,36 @@ int main(int argc, char* argv[]) {
 			state.scale = vec3(1.0f,1.0f,1.0f);
 			state.rotation.x = 90.0f * M_DEGTORAD32;
 
-            state.world = container.prev_pos.lerp(container.pos, alpha);
+            // container
+            state.world = container.pos;
             state.scale = vec3(container.radius,container.radius,1.0f);
             state.texture = field_texture;
 			render_plane(state);
 
+            // poolball
             state.world = poolball.prev_pos.lerp(poolball.pos, alpha);
             state.scale = vec3(poolball.radius,poolball.radius,1.0f);
             state.texture = marble_texture;
             render_plane(state);
 
+            // marble
             state.world = marble.prev_pos.lerp(marble.pos, alpha);
             state.scale = vec3(marble.radius,marble.radius,1.0f);
             state.texture = marble_texture;
             render_plane(state);
+
+            // mesh
+            state.world = container.pos;
+            state.scale = vec3(container.radius,container.radius,1.0f);
+            state.texture = 0;
+            render_mesh(state, icosphere);
 
 			SDL_GL_SwapWindow(sgl.window);
 		}
 		memory.transient_current = 0;
 	}
 	
+    // Image data, Texture data
 	stbi_image_free(field_image.data);
 	glDeleteTextures(1,&field_texture);
     stbi_image_free(marble_image.data);
@@ -516,12 +536,20 @@ int main(int argc, char* argv[]) {
     stbi_image_free(future_image.data);
     glDeleteTextures(1,&future_texture);
 	
+    // Shader
 	glDeleteProgram(basic_texture.program);
-	glDeleteBuffers(1, &plane.verts);
+	
+    // Primitives
+    glDeleteBuffers(1, &plane.verts);
 	glDeleteBuffers(1, &plane.colors);
 	glDeleteBuffers(1, &plane.indices);
 	glDeleteBuffers(1, &plane.uv_coords);
-	SDL_DestroyWindow( sgl.window );
+    
+    // OBJ
+    glDeleteBuffers(1, &icosphere.verts);
+    glDeleteBuffers(1, &icosphere.indices);
+	
+    SDL_DestroyWindow( sgl.window );
 	SDL_Quit();
 
 	free(memory.TransientStorage);

@@ -83,6 +83,10 @@ typedef struct vec3
         result.z = z * scalar;
         return result;
     }
+    inline b4 operator == ( vec3 v )
+    {
+        return (v.x == x && v.y == y && v.z == z);
+    }
     inline vec3 normal ()
     {
         f4 magnitude = sqrt((x * x) + (y * y) + (z * z));

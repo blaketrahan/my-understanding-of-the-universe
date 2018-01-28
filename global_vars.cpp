@@ -38,6 +38,17 @@ struct PRIMITIVE
 	GLuint uv_coords;
 } plane; 
 
+struct BASIC_SHADER {
+    GLuint program;
+    GLint uniform_model;
+    GLint uniform_view;
+    GLint uniform_proj;
+    GLint uniform_scale;
+    GLint uniform_color;
+    GLint uniform_alpha;
+    GLint attribute_coord3d;
+} basic;
+
 struct BASIC_TEXTURE_SHADER {
 	GLuint program;
 	GLint uniform_model;
@@ -74,3 +85,8 @@ struct IMAGE {
 } field_image, marble_image, future_image;
 
 GLuint field_texture, marble_texture, future_texture;
+
+struct OBJ {
+    GLuint verts;
+    GLuint indices;
+};

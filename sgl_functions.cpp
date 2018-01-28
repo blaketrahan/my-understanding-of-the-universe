@@ -308,6 +308,37 @@ b4 create_basic_texture_shader()
 	return true;
 }
 
+b4 create_basic_shader()
+{
+    GLint link_ok = GL_FALSE;
+    
+    GLuint vs, fs;
+    if ((vs = create_shader("basic.v.glsl", GL_VERTEX_SHADER))   == 0) return false;
+    if ((fs = create_shader("basic.f.glsl", GL_FRAGMENT_SHADER)) == 0) return false;
+    
+    basic.program = glCreateProgram();
+    glAttachShader(basic.program, vs);
+    glAttachShader(basic.program, fs);
+    glLinkProgram(basic.program);
+    glGetProgramiv(basic.program, GL_LINK_STATUS, &link_ok);
+    if (!link_ok) {
+        cerr << "glLinkProgram:";
+        print_log(basic.program);
+        return false;
+    }
+    
+    basic.attribute_coord3d = get_attrib(basic.program, "coord3d"); 
+    
+    basic.uniform_scale = get_uniform(basic.program, "scale");
+    basic.uniform_model = get_uniform(basic.program, "model");
+    basic.uniform_view = get_uniform(basic.program, "view");
+    basic.uniform_proj = get_uniform(basic.program, "proj");
+    basic.uniform_color = get_uniform(basic.program, "in_color");
+    basic.uniform_alpha = get_uniform(basic.program, "in_alpha");
+    
+    return true;
+}
+
 GLuint my_create_texture(s4 sw, s4 sh, b4 alpha, unsigned char* image_data = 0, b4 is_render_target = false, int comp = 0)
 {
 	// @TODO: figure texture size
@@ -356,4 +387,70 @@ void onResize(int width, int height) {
 	sgl.width = width;
 	sgl.height = height;
 	glViewport(0, 0, sgl.width, sgl.height);
+}
+
+b4 load_obj(const char* path, OBJ &obj)
+{
+    std::vector<f4> verts;
+    std::vector<u2> indices;
+    FILE* file = fopen(path,"r");
+    if (file == NULL)
+    {
+        cout << "ERROR: failed to open file: " << path << endl;
+        return false;
+    }
+
+    b4 success = true;
+
+    while (1)
+    {
+        char lineHeader[128];
+        int res = fscanf(file, "%s", lineHeader);
+        if (res == EOF) break;
+
+        if (strcmp(lineHeader,"v") == 0)
+        {
+            f4 v[3];
+            s4 matches = fscanf(file, "%f %f %f\n", &v[0], &v[1], &v[2]);
+            if (matches != 3)
+            {
+                printf("ERROR: could not parse vertices.\n");
+                success = false; break;
+            }
+            verts.push_back(v[0]);
+            verts.push_back(v[1]);
+            verts.push_back(v[2]);
+        }
+        else if (strcmp(lineHeader, "f") == 0)
+        {
+            u4 vertexIndex[3];
+            s4 matches = fscanf(file,"%u %u %u\n",&vertexIndex[0],&vertexIndex[1],&vertexIndex[2]);
+            if (matches != 3)
+            {
+                printf("ERROR: could not parse faces.\n");
+                success = false; break;
+            }
+            vertexIndex[0]--;
+            vertexIndex[1]--;
+            vertexIndex[2]--;
+            indices.push_back(vertexIndex[0]);
+            indices.push_back(vertexIndex[1]);
+            indices.push_back(vertexIndex[2]);
+        }
+    }
+
+    fclose(file);
+
+    if (success)
+    {
+        glGenBuffers(1, &obj.verts);
+        glBindBuffer(GL_ARRAY_BUFFER, obj.verts);
+        glBufferData(GL_ARRAY_BUFFER, verts.size() * sizeof(f4), &verts[0], GL_STATIC_DRAW);
+
+        glGenBuffers(1, &obj.indices);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, obj.indices);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(u2), &indices[0], GL_STATIC_DRAW);
+    }
+
+    return success;
 }
