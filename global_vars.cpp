@@ -10,6 +10,10 @@
 #include <fstream> // file saving
 #include <cstdlib> // i dont know
 
+#include <stdio.h> // objloader.cpp
+#include <string> // objloader.cpp
+#include <cstring> // objloader.cpp
+
 #include <SDL2/SDL.h>
 
 #define GLEW_STATIC
@@ -23,7 +27,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-#include "b_memory.h"
+#include "memory.h"
 #include "vec.h"
 
 #define DEBUG_BUILD
@@ -36,18 +40,7 @@ struct PRIMITIVE
 	GLuint colors;
 	GLuint indices;
 	GLuint uv_coords;
-} plane; 
-
-struct BASIC_SHADER {
-    GLuint program;
-    GLint uniform_model;
-    GLint uniform_view;
-    GLint uniform_proj;
-    GLint uniform_scale;
-    GLint uniform_color;
-    GLint uniform_alpha;
-    GLint attribute_coord3d;
-} basic;
+} plane;
 
 struct BASIC_TEXTURE_SHADER {
 	GLuint program;
@@ -56,7 +49,6 @@ struct BASIC_TEXTURE_SHADER {
 	GLint uniform_proj;
 	GLint uniform_scale;
 	GLint uniform_tex_source;
-	GLint uniform_tex_offset;
 	GLint attribute_coord3d;
 	GLint attribute_tex_coord2d;
 } basic_texture;
@@ -82,11 +74,11 @@ struct IMAGE {
 	int x;
 	int y;
 	int n;
-} field_image, marble_image, future_image;
-
-GLuint field_texture, marble_texture, future_texture;
-
-struct OBJ {
-    GLuint verts;
-    GLuint indices;
 };
+
+vector<glm::vec3> vertices;
+vector<glm::vec2> uvs;
+vector<glm::vec3> normals;
+
+GLuint vertexbuffer;
+GLuint uvbuffer;

@@ -3,352 +3,58 @@
 	-2018
 */
 #include "global_vars.cpp"
-#include "sgl_functions.cpp"
+#include "sgl.cpp"
+#include "shaders.cpp"
 #include "render_functions.cpp"
 #include "input.cpp"
+#include "physics.cpp"
+#include "objectloader.cpp"
 
-struct RigidBody {
-    vec3 velocity;
-    vec3 pos = vec3(0.5f,0.0f,0.0f); /* GLOBAL */
-    vec3 prev_pos = vec3(0.5f,0.0f,0.0f); /* GLOBAL */
-
-    f4 radius = 0.1f;
-
-    f4 mass = 10.0f;
-    f4 restitution = 0.75f;
-    f4 friction = 0.75f;
-
-    /*
-        Collision information
-    */
-    vec3 PoC; /* LOCAL */
-    vec3 PoC_on_radius; /* LOCAL */
-} marble, poolball, container;
-
-void reflect_circle_circle (RigidBody &A, RigidBody &B)
+int main(int argc, char* argv[])
 {
-    /*
-        2D or 3D
-
-        Collision resolution between:
-            1) Two circles, regardless of motion.
-
-        Source: https://www.gamasutra.com/view/feature/131424/pool_hall_lessons_fast_accurate_.php
-    */
-    /*
-        Normalized vector N from pos A to pos B
-    */
-    vec3 N = B.pos - A.pos;
-    N = N.normal();
-    /*
-        Find the length of the component of each velocity vector
-        along the N (the normal running through the collision point)
-    */
-    f4 component_length_A = A.velocity.dot(N);
-    f4 component_length_B = B.velocity.dot(N);
-
-    /*
-        Using the optimized version, 
-        optimizedP =  2(a1 - a2)
-                     ------------
-                     mass1 + mass2
-        P = magnitude of the change in the momentums of the circles before and after
-    */
-    f4 P = (2.0f * (component_length_A - component_length_B)) / (A.mass + B.mass);
-
-    /*
-        Calculate new velocites 
-    */    
-    vec3 v1_after = A.velocity - (N * (P * B.mass));
-    vec3 v2_after = B.velocity + (N * (P * A.mass));
-
-    /*
-        Apply changes.
-    */
-    A.velocity = v1_after;
-    B.velocity = v2_after;
-}
-
-b4 detect_collision_circle_circle_stationary (RigidBody A, RigidBody B)
-{
-    /*
-        2D or 3D
-
-        Detect collision only of:
-            1) two stationary circles
-
-        Source: https://www.gamasutra.com/view/feature/131424/pool_hall_lessons_fast_accurate_.php
-    */
-    f8 x = A.pos.x - B.pos.x;
-    x *= x;
-    f8 z = A.pos.z - B.pos.z;
-    z *= z;
-
-    f8 r = A.radius + B.radius; 
-    r *= r;
-
-    return (x + z <= r);
-}
-
-b4 detect_and_apply_collision_circle_circle (RigidBody &A, RigidBody &B)
-{
-    /*
-        2D or 3D
-
-        Detect collision and correct velocities of:
-            1) one moving circle against one stationary circle
-            2) two moving circles
-
-        Source: https://www.gamasutra.com/view/feature/131424/pool_hall_lessons_fast_accurate_.php
-        
-        See references/circle-circle-collision.jpg
-            references/circle-circle-collision-B.jpg
-    */
-
-    /*
-        subtract velocity B from A, so that B is treated as stationary
-    */
-    vec3 A_combined_velocity = A.velocity - B.velocity;
-
-    /*
-        is velocity less than distance between A and B
-    */
-    f4 dist = distance_between(B.pos, A.pos);
-    f4 r = (B.radius + A.radius);
-    dist -= r;
-    if (A_combined_velocity.length() < dist) return false;
-
-    /*
-        @todo: I don't understand why the normal rather than velocity is used.
-    */
-    vec3 N = A_combined_velocity.normal();
-
-    /*
-        vector C: A center to B center
-    */
-    vec3 C = B.pos - A.pos;
-
-    /* 
-        dot product: project vector N onto C, returns scalar value
-        describing how much of N projects onto C
-        if the value is <= 0, then N does not project onto C at all
-        aka, the N is not moving toward C
-        D = N . C = |C| * cos(angle between N and C)
-    */
-    f4 D = N.dot(C);
-    if (D <= 0) { return false; }
-
-    /* 
-        F = |C| - dot product 
-        F = Distance to C - Distance on C that A will travel
-        Square these values so not to use squareroot
-        Cannot collide if the difference is greater than their radii
-    */
-    f4 length_c = C.length();
-    f4 F = (length_c * length_c) - (D * D);
-    f4 rr = r * r;
-    if (F >= rr) { return false; }
-
-    /*
-        F and rr make two sides of a right triangle. 
-        The third side (T) being parallel to A_combined_velocity
-        (if the collision exists)
-    */
-    f4 T = rr - F;
-
-    /*
-        If there is no such right triangle with sides length of 
-        rr and sqrt(F), T will probably be less than 0.  
-    */
-    if (T < 0) { return false; }
-
-    /*
-        Therefore the distance the circle has to travel along 
-        A_combined_velocity is D - sqrt(T)
-    */
-    f4 distance = D - sqrt(T);
-
-    /*
-        Get the length of the original velocity vector.
-        Finally, the corrected velocity vector must be shorter
-        than the original velocity vector.
-    */
-    f4 mag = A_combined_velocity.length();
-    if (mag < distance) { return false; }
-
-    /*
-        If the two bodies should not reflect, then
-        calculate the collision time and apply changes.
-
-        if (A.velocity.has_length() && B.velocity.has_length())
-        {
-            // 2 moving circles
-            f4 collision_time = A_combined_velocity.length() / A.velocity.length();
-            A.velocity = A.velocity * collision_time;
-            B.velocity = B.velocity * collision_time;
-        }
-        else {
-            // 1 moving circle 1 stationary circle
-            A.velocity = A_combined_velocity.normal() * distance;
-        }
-        
-        Else, reflect the two bodies.
-    */
-    reflect_circle_circle(A,B);
-
-    return true;
-}
-
-f4 calculate_kinetic_energy (RigidBody* bodies, u4 count)
-{
-    /*
-        Calculate kinetic energy in system.
-        Don't forget to remove friction when checking for conservation.
-    */
-    f4 joules = 0.0f;
-    for (u4 i = 0; i < count; i++)
-    {
-        // KE = 0.5f * (M * V)^2
-        f4 mv = bodies[i].mass * bodies[i].velocity.length();
-        joules += 0.5f * (mv * mv);
-    }
-    return joules;
-}
-
-b4 calculate_PoC_circle_in_circle_minkowski_difference (RigidBody &B, RigidBody &A)
-{
-    if (B.velocity.has_length() == false) return false;
-    /*
-        B is smaller inner circle
-        A is larger containing circle
-
-        C is B's next position
-
-        This calculates B's point of contact on A along it's velocity vector,
-        but does not alter velocity.
-
-        Sources:
-            Casey Muratori, "Implementing GJK - 2006", 7 min 55 sec
-            https://www.youtube.com/watch?v=Qupqu1xe7Io
-            
-            Sam Hocevar
-            https://gamedev.stackexchange.com/questions/29650/circle-inside-circle-collision
-
-        Additional reading:
-            https://en.wikipedia.org/wiki/Minkowski_addition#Convex_hulls_of_Minkowski_sums
-            https://wildbunny.co.uk/blog/2011/04/20/collision-detection-for-dummies/
-    */
-    f4 R = A.radius;
-    f4 r = B.radius;
-
-    vec3 C_pos = B.pos + B.velocity;
-    
-    vec3 AC = C_pos - A.pos;
-
-    if (AC.length() < R - r) {
-        return false;
-    }
-
-    /*
-        @todo: Understand this series of equations better.
-    */
-
-    vec3 AB = B.pos - A.pos;
-    vec3 BC = C_pos - B.pos; 
-
-    f4 BC2 = BC.length();
-    BC2 *= BC2;
-
-    f4 AB2 = AB.length();
-    AB2 *= AB2;
-
-    f4 Rr2 = (R - r) * (R - r);
-
-    f4 b = ( AB.dot(BC) / BC2 ) * -1.0f;
-    f4 c = (AB2 - Rr2) / BC2;
-    f4 d = b * b - c;
-    f4 k = b - sqrt(d);
-    if (k < 0)
-        k = b + sqrt(d);
-    if (k < 0)
-    {
-        // cout << "No solution: " << endl;
-    }
-    else
-    {
-        B.PoC = (B.velocity * k);
-        B.PoC_on_radius = B.PoC + (AB.normal() * B.radius);
-    }
-
-    return true;
-}
-
-void reflect_circle_within_cirle (RigidBody &A, vec3 container_position)
-{
-    /*
-        2D or 3D
-        Assumes intersection has already been found.
-        Source: Gareth Rees,
-            https://stackoverflow.com/questions/573084/how-to-calculate-bounce-angle
-
-        @todo: How does the container friction and restitution into this
-
-        @todo: Change this to reflect vector off line.
-            reflect_vector_off_line (&velocity, line.pos, line.normal, friction, restitution)
-    */
-    vec3 V = A.velocity;
-
-    /*
-        N : Normal of surface with length of 1
-            at the position of contact
-    */
-    vec3 N = vec3(container_position - (A.pos + A.PoC)).normal();
-
-    /*  
-        Split velocity into two components:
-        U : perpendicular to the surface
-        W : parallel with surface
-    */
-    vec3 U = N * V.dot(N);
-    vec3 W = V - U;
-
-    /*
-        Calcuate the reflected vector with friction and restitution
-    */
-    V = (W * A.friction) - (U * A.restitution);
-
-    /*
-        @todo: Clean this up, get rid of all the sqrt()
-        Calculate energy lost and new velocity.
-    */
-    f4 traveled = A.PoC.length();
-    f4 needs_to_travel = A.velocity.length();
-    f4 remaining = needs_to_travel - traveled;
-
-    f4 energy_remaining = V.length() / needs_to_travel;
-
-    remaining *= energy_remaining;
-
-    A.pos = A.pos + A.PoC + (V.normal() * remaining);
-
-    A.velocity = V.normal() * (A.velocity.length() * energy_remaining);
-}
-
-int main(int argc, char* argv[]) {
 	initialize_memory(memory, 8, 2);
 	
-	if (!create_sgl()) 
+	if (!create_sdl_opengl_window()) 
     { 
         cout << "ERROR: failed to create sdl or opengl" << endl;
     }
 	
 	create_plane();
 
-	if (!create_basic_texture_shader()) return 0;
-    if (!create_basic_shader()) return 0;
+    GLuint field_texture;
+    GLuint marble_texture; 
+    GLuint future_texture;
+    GLuint mesh_texture;
+    IMAGE field_image;
+    IMAGE marble_image;
+    IMAGE future_image;
+    IMAGE mesh_image;
 
-    OBJ icosphere;
-    if (!load_obj("media/icosphere.obj", icosphere)) return 0;
+    /*
+        OBJ LOADING 
+    */
+    if (!loadOBJ("media/rabbit.obj", vertices, uvs, normals))
+    {
+        cout << "Failed  to load obj." << endl;
+        return 0;
+    }
+    glGenBuffers(1, &vertexbuffer);
+    glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), &vertices[0], GL_STATIC_DRAW);
+
+    glGenBuffers(1, &uvbuffer);
+    glBindBuffer(GL_ARRAY_BUFFER, uvbuffer);
+    glBufferData(GL_ARRAY_BUFFER, uvs.size() * sizeof(glm::vec2), &uvs[0], GL_STATIC_DRAW);
+
+    mesh_texture = 0;
+    mesh_image.data = stbi_load("media/rabbit.tga", &mesh_image.x, &mesh_image.y, &mesh_image.n, 3);
+    mesh_texture = my_create_texture(1024,1024,true,mesh_image.data,false,mesh_image.n);
+
+    /*
+        OBJ LOADING
+    */
+
+	if (!create_basic_texture_shader()) return 0;
 
 	field_texture = 0;
 	field_image.data = stbi_load("media/circle.png", &field_image.x, &field_image.y, &field_image.n, 4);
@@ -381,8 +87,6 @@ int main(int argc, char* argv[]) {
     poolball.pos.z = -0.05f;
     poolball.prev_pos.z = -0.05f;
     poolball.velocity.x = 0.025f;
-	
-    u4 step = 0;
 
 	while(!input.quit_app)
 	{
@@ -432,6 +136,7 @@ int main(int argc, char* argv[]) {
             poolball_force.length = 0.0f;
 
             auto step = [ground_friction] (RigidBody &body, Force force) {
+                // store last position
                 body.prev_pos = body.pos;
 
                 // calculate velocity
@@ -475,16 +180,16 @@ int main(int argc, char* argv[]) {
 		{
 			render_dt = 0;
 
-			// f4 posX = cam_radius * cos(camera_angle);
-    		// f4 posZ = cam_radius * sin(camera_angle);
+			f4 posX = cam_radius * cos(camera_angle);
+    		f4 posZ = cam_radius * sin(camera_angle);
 
-            vec3 pp = camera_pos + vec3(0.0f, -cam_radius, 0.0f);
+            vec3 pp = camera_pos + vec3(posX, cam_radius, posZ);
             vec3 lookat = camera_pos;
 
 			glm::mat4 view = glm::lookAt(
-				glm::vec3(pp.x,pp.y-3,pp.z),
+				glm::vec3(pp.x,pp.y,pp.z),
 				glm::vec3(lookat.x, lookat.y, lookat.z),
-				glm::vec3(0.0f, 0.0f, 1.0f));
+				glm::vec3(0.0f, 1.0f, 0.0f));
 
 			glm::mat4 projection = glm::perspective(45.0f, 1.0f*sgl.width/sgl.height, 0.1f, 100.0f);
 
@@ -500,28 +205,29 @@ int main(int argc, char* argv[]) {
 			state.rotation.x = 90.0f * M_DEGTORAD32;
 
             // container
-            state.world = container.pos;
-            state.scale = vec3(container.radius,container.radius,1.0f);
-            state.texture = field_texture;
-			render_plane(state);
+   //          state.world = container.pos;
+   //          state.scale = vec3(container.radius,container.radius,1.0f);
+   //          state.texture = field_texture;
+			// render_plane(state);
 
-            // poolball
-            state.world = poolball.prev_pos.lerp(poolball.pos, alpha);
-            state.scale = vec3(poolball.radius,poolball.radius,1.0f);
-            state.texture = marble_texture;
-            render_plane(state);
+   //          // poolball
+   //          state.world = poolball.prev_pos.lerp(poolball.pos, alpha);
+   //          state.scale = vec3(poolball.radius,poolball.radius,1.0f);
+   //          state.texture = marble_texture;
+   //          render_plane(state);
 
-            // marble
-            state.world = marble.prev_pos.lerp(marble.pos, alpha);
-            state.scale = vec3(marble.radius,marble.radius,1.0f);
-            state.texture = marble_texture;
-            render_plane(state);
+   //          // marble
+   //          state.world = marble.prev_pos.lerp(marble.pos, alpha);
+   //          state.scale = vec3(marble.radius,marble.radius,1.0f);
+   //          state.texture = marble_texture;
+   //          render_plane(state);
 
             // mesh
             state.world = container.pos;
             state.scale = vec3(container.radius,container.radius,1.0f);
-            state.texture = 0;
-            render_mesh(state, icosphere);
+            state.texture = mesh_texture;
+            state.rotation.x = 0.0f;
+            render_mesh(state);
 
 			SDL_GL_SwapWindow(sgl.window);
 		}
@@ -535,6 +241,8 @@ int main(int argc, char* argv[]) {
     glDeleteTextures(1,&marble_texture);
     stbi_image_free(future_image.data);
     glDeleteTextures(1,&future_texture);
+    stbi_image_free(mesh_image.data);
+    glDeleteTextures(1,&mesh_texture);
 	
     // Shader
 	glDeleteProgram(basic_texture.program);
@@ -544,10 +252,10 @@ int main(int argc, char* argv[]) {
 	glDeleteBuffers(1, &plane.colors);
 	glDeleteBuffers(1, &plane.indices);
 	glDeleteBuffers(1, &plane.uv_coords);
-    
-    // OBJ
-    glDeleteBuffers(1, &icosphere.verts);
-    glDeleteBuffers(1, &icosphere.indices);
+
+    // OBJ LOADING
+    glDeleteBuffers(1, &vertexbuffer);
+    glDeleteBuffers(1, &uvbuffer);
 	
     SDL_DestroyWindow( sgl.window );
 	SDL_Quit();

@@ -1,22 +1,20 @@
 attribute vec3 coord3d;
-uniform vec3 in_color;
+attribute vec2 tex_coord2d;
+
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 proj;
 uniform vec3 scale;
-varying vec3 f_color;
 
-uniform vec2 tex_offset;
-
-attribute vec2 tex_coord2d;
+// fragment
 uniform sampler2D tex_source;
-
 varying vec2 UV;
 
-void main(void) {
+void main(void)
+{
 	vec3 scaled_vertex = coord3d * scale;
 
   	gl_Position = proj * view * model * vec4(scaled_vertex.x,scaled_vertex.y,scaled_vertex.z, 1.0);
 
-  	UV = tex_coord2d + tex_offset;
+  	UV = tex_coord2d;
 }
