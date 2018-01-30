@@ -249,3 +249,7 @@ void load_mesh (const char * filename)
 
     library.mesh_count++;
 };
+
+glm::vec3 glmv(vec3 v) {
+    return glm::vec3(v.x,v.y,v.z);
+}

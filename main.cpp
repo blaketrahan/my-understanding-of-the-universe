@@ -31,9 +31,11 @@ int main(int argc, char* argv[])
     load_texture("media/rabbit.tga", 1024, 1024, 3);
     load_texture("media/tamanegi.png", 1024, 1024, 4);
     load_texture("media/garlic.png", 1024, 1024, 3);
+    load_texture("media/pusher.png", 256, 256, 4);
 
     load_mesh("media/tamanegi.obj");
     load_mesh("media/rabbit.obj");
+    load_mesh("media/pusher.obj");
 
     /*
         Entities
@@ -44,6 +46,10 @@ int main(int argc, char* argv[])
     Tamanegi.body.radius = 0.1f;
     Tamanegi.body.pos = vec3(0.0f,0.0f,-0.5f);
     Tamanegi.body.prev_pos = Tamanegi.body.pos;
+
+    Entity Pusher;
+    assign_mesh(Pusher, "media/pusher.obj");
+    assign_texture(Pusher, "media/pusher.png");
 
     Entity Garlic;
     assign_mesh(Garlic, "media/tamanegi.obj");
@@ -56,6 +62,12 @@ int main(int argc, char* argv[])
     assign_mesh(Rabbit, "media/rabbit.obj");
     assign_texture(Rabbit, "media/rabbit.tga");
 
+    RigidBody container;
+    container.radius = 1.0f;
+    container.pos = vec3(0.0f,0.0f,-1.0f);
+    container.prev_pos = container.pos;
+    GLuint container_texture = get_texture("media/circle.png");
+
 	// loop
 	const f4 RENDER_MS = 1.0f/60.0f;
 	const f4 PHYSICS_MS = 1.0f/60.0f;
@@ -65,12 +77,7 @@ int main(int argc, char* argv[])
 	f4 camera_angle = 0.0f;
 	f4 cam_radius = 3.0f;
 	vec3 camera_pos = vec3();
-
-    RigidBody container;
-    container.radius = 1.0f;
-    container.pos = vec3(0.0f,0.0f,-1.0f);
-    container.prev_pos = container.pos;
-    GLuint container_texture = get_texture("media/circle.png");
+    vec3 camera_pos_on_radius = vec3();
 
 	while(!input.quit_app)
 	{
@@ -91,48 +98,57 @@ int main(int argc, char* argv[])
 		{
 			physics_dt -= PHYSICS_MS;
 
-            if (input.right) { camera_angle -= M_PI32 * 0.01f; }
-            if (input.left)  { camera_angle += M_PI32 * 0.01f; }
+            if (input.right)
+            {
+                camera_angle -= M_PI32 * 0.01f;
+                camera_angle = camera_angle < 0.0f ? camera_angle = M_PI32 * 2.0f + camera_angle : camera_angle;
+            }
+            if (input.left)
+            {
+                camera_angle += M_PI32 * 0.01f;
+                camera_angle = camera_angle >  M_PI32 * 2.0f ? camera_angle - (M_PI32 * 2.0f) : camera_angle;
+            }
 
             if (input.up)    { cam_radius -= M_PI32 * 0.01f; }
             if (input.down)  { cam_radius += M_PI32 * 0.01f; }
 
 			f4 W = 20.0f;
-			camera_pos.x = ((camera_pos.x * (W - 1)) + 0) / W;
-			camera_pos.y = ((camera_pos.y * (W - 1)) + 0) / W;
-			camera_pos.z = ((camera_pos.z * (W - 1)) + 0) / W;
+			camera_pos.x = ((camera_pos.x * (W - 1)) + Tamanegi.body.pos.x) / W;
+			camera_pos.y = ((camera_pos.y * (W - 1)) + Tamanegi.body.pos.y) / W;
+			camera_pos.z = ((camera_pos.z * (W - 1)) + Tamanegi.body.pos.z) / W;
+
+            f4 cPosX = cam_radius * cos(camera_angle);
+            f4 cPosY = cam_radius * sin(camera_angle);
+            camera_pos_on_radius = vec3(-cPosX, -cPosY, cam_radius);
             
             // apply friction
             const f4 ground_friction = 0.985f;
 
-            struct Force {
-                vec3 dir;
-                f4 length = 1.0f * 0.075f;
-            } marble_force, poolball_force;
+            // user input
+            vec3 push_direction = vec3(camera_pos_on_radius * vec3(-1.0f,-1.0f,0.0f)).normal();
+            f4 push_length = 0.0f;
 
-            // get user input
-            if (single_press(input.d)) { marble_force.dir.y = -1.0f; }
-            if (single_press(input.a)) { marble_force.dir.y =  1.0f; }
-            if (single_press(input.w)) { marble_force.dir.x =  1.0f; }
-            if (single_press(input.s)) { marble_force.dir.x = -1.0f; }
+            if (single_press(input.w)) { push_length = 1.0f * 0.075f; }
 
-            marble_force.dir = marble_force.dir.normal();
-            poolball_force.length = 0.0f;
+            Tamanegi.body.user_force = Tamanegi.body.user_force + (push_direction * push_length);
 
-            auto step = [ground_friction] (RigidBody &body, Force force) {
+            auto step = [ground_friction] (RigidBody &body) {
                 // store last position
                 body.prev_pos = body.pos;
 
                 // calculate velocity
-                body.velocity = body.velocity + (force.dir * force.length);
+                body.velocity = body.velocity + body.user_force;
 
                 // apply friction
                 body.velocity = body.velocity * ground_friction;
+
+                // erase user forces
+                body.user_force = vec3();
             };
 
             // move everything
-            step(Tamanegi.body, marble_force);
-            step(Garlic.body, poolball_force);
+            step(Tamanegi.body);
+            step(Garlic.body);
 
             // Tamanegi.body + Garlic.body
             detect_and_apply_collision_circle_circle(Tamanegi.body, Garlic.body);
@@ -161,20 +177,16 @@ int main(int argc, char* argv[])
         f4 alpha = physics_dt / PHYSICS_MS;
 
 		render_dt += frame_time;
-		// if (render_dt >= RENDER_MS)
+		if (render_dt >= RENDER_MS)
 		{
 			render_dt = 0;
 
-			f4 posX = cam_radius * cos(camera_angle);
-    		f4 posY = cam_radius * sin(camera_angle);
+            // @todo: lerp camera position
 
             // X+ left, Y+ left, Z+ up
-            vec3 pp = camera_pos + vec3(-posX, -posY, cam_radius);
-            vec3 lookat = camera_pos;
-
 			glm::mat4 view = glm::lookAt(
-				glm::vec3(pp.x,pp.y,pp.z),
-				glm::vec3(lookat.x, lookat.y, lookat.z),
+				glmv(camera_pos + camera_pos_on_radius),
+				glmv(camera_pos),
 				glm::vec3(0.0f, 0.0f, 1.0f));
 
 			glm::mat4 projection = glm::perspective(45.0f, 1.0f*sgl.width/sgl.height, 0.1f, 100.0f);
@@ -186,18 +198,16 @@ int main(int argc, char* argv[])
 			RENDER_STATE state;
 			state.view = view;
 			state.projection = projection;
-			state.world = pp;
-			state.scale = vec3(1.0f,1.0f,1.0f);
 
             // container
-            state.world = container.pos;
-            state.scale = vec3().set(container.radius);
-            state.texture = container_texture;
-            state.rotation = vec3();
-			render_plane(state);
+   //          state.world = container.pos;
+   //          state.scale = vec3().set(container.radius);
+   //          state.texture = container_texture;
+   //          state.rotation = vec3();
+			// render_plane(state);
 
             // rabbit
-            state.world = container.pos + vec3(0.0f,0.0f,container.radius);
+            state.world = container.pos + vec3(0.0f,2.0f,0.0f);
             state.scale = vec3().set(container.radius);
             state.texture = Rabbit.texture;
             state.rotation.x = 0.0f;
@@ -219,6 +229,13 @@ int main(int argc, char* argv[])
             state.texture = Garlic.texture;
             render_mesh(state, library.meshes[Garlic.mesh]);
 
+            // pusher
+            state.world = Pusher.body.prev_pos.lerp(Pusher.body.pos, alpha);
+            state.scale = vec3().set(Pusher.body.radius);
+            state.rotation = vec3();
+            state.texture = Pusher.texture;
+            render_mesh(state, library.meshes[Pusher.mesh]);
+
 			SDL_GL_SwapWindow(sgl.window);
 		}
 		memory.transient_current = 0;
@@ -227,7 +244,7 @@ int main(int argc, char* argv[])
     // Texture data
     for (u4 i = 0; i < library.texture_count; i++)
     {
-        glDeleteTextures(1,&library.textures[i].id);
+        glDeleteTextures(1, &library.textures[i].id);
     }
 
 	// Mesh data

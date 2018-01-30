@@ -83,9 +83,21 @@ typedef struct vec3
         result.z = z * scalar;
         return result;
     }
+    inline vec3 operator * ( vec3 v )
+    {
+        vec3 result;
+        result.x = x * v.x;
+        result.y = y * v.y;
+        result.z = z * v.z;
+        return result;
+    }
     inline b4 operator == ( vec3 v )
     {
         return (v.x == x && v.y == y && v.z == z);
+    }
+    inline b4 operator != ( vec3 v )
+    {
+        return v.x != x || v.y != y || v.z != z;
     }
     inline vec3 normal ()
     {

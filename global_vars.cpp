@@ -78,10 +78,8 @@ struct IMAGE {
 	int n;
 };
 
-struct Library {
-    /*
-        Textures
-    */
+struct Library 
+{
     struct Texture {
         string name;
         GLuint id;
@@ -89,9 +87,8 @@ struct Library {
     Texture* textures = 0;
     u4 texture_count = 0;
 
-    /*
-        Meshes
-    */
+    /* ---------- */
+
     struct Mesh {
         string name;
         vector<glm::vec3> vertices;
@@ -104,32 +101,30 @@ struct Library {
     u4 mesh_count = 0;
 } library;
 
-struct RigidBody {
-    vec3 velocity; /* LOCAL */
-    vec3 pos; /* GLOBAL */
-    vec3 prev_pos; /* GLOBAL */
+struct RigidBody 
+{
+    vec3 velocity;  /* LOCAL */
+    vec3 pos;       /* GLOBAL */
+    vec3 prev_pos;  /* GLOBAL */
 
     f4 radius = 0.1f;
-
     f4 mass = 10.0f;
     f4 restitution = 0.75f;
     f4 friction = 0.75f;
 
-    /*
-        Collision information
-    */
-    vec3 PoC; /* LOCAL */
+    vec3 user_force;    /* LOCAL */
+
+    /* Collision information */
+    vec3 PoC;           /* LOCAL */
     vec3 PoC_on_radius; /* LOCAL */
 };
 
-struct Entity {
-    /*
-        Physics
-    */
+struct Entity 
+{
+    /* Physics */
     RigidBody body;
-    /*
-        Rendering
-    */
+
+    /* Rendering */
     u4 mesh;
     GLuint texture;
 };
