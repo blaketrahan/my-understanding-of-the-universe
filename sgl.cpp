@@ -1,4 +1,4 @@
-b4 create_sdl_opengl_window()
+b4 create_sdl_opengl_window ()
 {
     sgl.width = 800;
     sgl.height = 600;
@@ -40,11 +40,11 @@ b4 create_sdl_opengl_window()
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
 
-    // Enable depth test
+    /* Enable depth test */
     glEnable(GL_DEPTH_TEST);
-    // Accept fragment if it closer to the camera than the former one
+    /* Accept fragment if it closer to the camera than the former one */
     glDepthFunc(GL_LESS); 
-    // Cull triangles which normal is not towards the camera
+    /* Cull triangles which normal is not towards the camera */
     glEnable(GL_CULL_FACE);
     
     // SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
@@ -55,15 +55,17 @@ b4 create_sdl_opengl_window()
     // SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     // SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 16);
 
+
+
     return true;
 }
 
-void create_plane() {
+void create_plane () {
     GLfloat plane_vertices[] = {
-        -1.0f, -1.0f, 1.0f, //VO - 0
-         1.0f, -1.0f, 1.0f, //V1 - 1
-        -1.0f,  1.0f, 1.0f, //V2 - 2
-         1.0f,  1.0f, 1.0f, //V3 - 3
+        -1.0f, -1.0f, 0.0f, //VO - 0
+         1.0f, -1.0f, 0.0f, //V1 - 1
+        -1.0f,  1.0f, 0.0f, //V2 - 2
+         1.0f,  1.0f, 0.0f, //V3 - 3
     };
     glGenBuffers(1, &plane.verts);
     glBindBuffer(GL_ARRAY_BUFFER, plane.verts);
@@ -100,7 +102,7 @@ void create_plane() {
 
 
 
-GLuint my_create_texture(s4 sw, s4 sh, b4 alpha, unsigned char* image_data = 0, b4 is_render_target = false, int comp = 0)
+GLuint my_create_texture (s4 sw, s4 sh, b4 alpha, unsigned char* image_data = 0, b4 is_render_target = false, int comp = 0)
 {
     // @TODO: figure texture size
     unsigned int width = sw;
@@ -142,3 +144,108 @@ GLuint my_create_texture(s4 sw, s4 sh, b4 alpha, unsigned char* image_data = 0, 
     }
     return textureID;
 }
+
+void load_texture (const char *filename, u4 w, u4 h, u4 components)
+{
+    IMAGE image;
+    image.data = stbi_load(filename, &image.x, &image.y, &image.n, components);
+    if (image.data == NULL)
+    {
+        cout << "Failed to load texture: " << filename << endl;
+        return;
+    }
+    GLuint texture_id = my_create_texture(w, h, true, image.data, false, image.n);
+
+    stbi_image_free(image.data);
+
+    /*
+        add to texture list
+    */
+    library.textures[library.texture_count].name = filename;
+    library.textures[library.texture_count].id = texture_id;
+    library.texture_count++;
+}
+
+void assign_texture (Entity &entity, const char* filename)
+{
+    b4 found = false;
+    for (u4 i = 0; i < library.texture_count; i++)
+    {
+        if (library.textures[i].name == filename)
+        {
+            entity.texture = library.textures[i].id;
+            found = true;
+            break;
+        }
+    }
+    if (!found)
+    {
+        cout << "Failed to assign texture: " << filename << endl;
+    }
+}
+
+GLuint get_texture (const char* filename)
+{
+    GLuint texture_id = 0;
+    b4 found = false;
+    for (u4 i = 0; i < library.texture_count; i++)
+    {
+        if (library.textures[i].name == filename)
+        {
+            texture_id = library.textures[i].id;
+            found = true;
+            break;
+        }
+    }
+    if (!found)
+    {
+        cout << "Failed to get texture: " << filename << endl;
+    }
+    return texture_id;
+}
+
+void assign_mesh (Entity &entity, const char* filename)
+{
+    b4 found = false;
+    for (u4 i = 0; i < library.mesh_count; i++)
+    {
+        if (library.meshes[i].name == filename)
+        {
+            entity.mesh = i;
+            found = true;
+            break;
+        }
+    }
+    if (!found)
+    {
+        cout << "Failed to assign mesh: " << filename << endl;
+    }
+}
+
+void load_mesh (const char * filename)
+{
+    /*
+        add to mesh list
+    */
+    u4 c = library.mesh_count;
+    library.meshes[c].name = filename;
+
+    if (!loadOBJ(filename, library.meshes[c].vertices, library.meshes[c].uvs, library.meshes[c].normals))
+    {
+        cout << "Failed  to load mesh: " << filename << endl;
+        return;
+    }
+    glGenBuffers(1, &library.meshes[c].vertex_buffer);
+    glBindBuffer(GL_ARRAY_BUFFER, library.meshes[c].vertex_buffer);
+    glBufferData(GL_ARRAY_BUFFER, 
+        library.meshes[c].vertices.size() * sizeof(glm::vec3), 
+        &library.meshes[c].vertices[0], GL_STATIC_DRAW);
+
+    glGenBuffers(1, &library.meshes[c].uv_buffer);
+    glBindBuffer(GL_ARRAY_BUFFER, library.meshes[c].uv_buffer);
+    glBufferData(GL_ARRAY_BUFFER, 
+        library.meshes[c].uvs.size() * sizeof(glm::vec2), 
+        &library.meshes[c].uvs[0], GL_STATIC_DRAW);
+
+    library.mesh_count++;
+};

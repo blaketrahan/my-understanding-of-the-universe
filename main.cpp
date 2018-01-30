@@ -8,7 +8,6 @@
 #include "render_functions.cpp"
 #include "input.cpp"
 #include "physics.cpp"
-#include "objectloader.cpp"
 
 int main(int argc, char* argv[])
 {
@@ -18,55 +17,44 @@ int main(int argc, char* argv[])
     { 
         cout << "ERROR: failed to create sdl or opengl" << endl;
     }
-	
-	create_plane();
 
-    GLuint field_texture;
-    GLuint marble_texture; 
-    GLuint future_texture;
-    GLuint mesh_texture;
-    IMAGE field_image;
-    IMAGE marble_image;
-    IMAGE future_image;
-    IMAGE mesh_image;
+    create_plane();
 
-    /*
-        OBJ LOADING 
-    */
-    if (!loadOBJ("media/rabbit.obj", vertices, uvs, normals))
-    {
-        cout << "Failed  to load obj." << endl;
-        return 0;
-    }
-    glGenBuffers(1, &vertexbuffer);
-    glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), &vertices[0], GL_STATIC_DRAW);
+    if (!create_basic_texture_shader()) return 0;
 
-    glGenBuffers(1, &uvbuffer);
-    glBindBuffer(GL_ARRAY_BUFFER, uvbuffer);
-    glBufferData(GL_ARRAY_BUFFER, uvs.size() * sizeof(glm::vec2), &uvs[0], GL_STATIC_DRAW);
+    library.texture_count = 20;
+    library.textures = (Library::Texture*)alloc(memory, sizeof(Library::Texture) * library.texture_count);
+    library.mesh_count = 20;
+    library.meshes = (Library::Mesh*)alloc(memory, sizeof(Library::Mesh) * library.mesh_count);
 
-    mesh_texture = 0;
-    mesh_image.data = stbi_load("media/rabbit.tga", &mesh_image.x, &mesh_image.y, &mesh_image.n, 3);
-    mesh_texture = my_create_texture(1024,1024,true,mesh_image.data,false,mesh_image.n);
+    load_texture("media/circle.png", 256, 256, 4);
+    load_texture("media/rabbit.tga", 1024, 1024, 3);
+    load_texture("media/tamanegi.png", 1024, 1024, 4);
+    load_texture("media/garlic.png", 1024, 1024, 3);
+
+    load_mesh("media/tamanegi.obj");
+    load_mesh("media/rabbit.obj");
 
     /*
-        OBJ LOADING
+        Entities
     */
+    Entity Tamanegi;
+    assign_mesh(Tamanegi, "media/tamanegi.obj");
+    assign_texture(Tamanegi, "media/tamanegi.png");
+    Tamanegi.body.radius = 0.1f;
+    Tamanegi.body.pos = vec3(0.0f,0.0f,-0.5f);
+    Tamanegi.body.prev_pos = Tamanegi.body.pos;
 
-	if (!create_basic_texture_shader()) return 0;
+    Entity Garlic;
+    assign_mesh(Garlic, "media/tamanegi.obj");
+    assign_texture(Garlic, "media/garlic.png");
+    Garlic.body.radius = 0.1f;
+    Garlic.body.pos = vec3(0.5f,0.0f,-0.5f);
+    Garlic.body.prev_pos = Garlic.body.pos;
 
-	field_texture = 0;
-	field_image.data = stbi_load("media/circle.png", &field_image.x, &field_image.y, &field_image.n, 4);
-	field_texture = my_create_texture(256,256,true,field_image.data,false,field_image.n);
-
-    marble_texture = 0;
-    marble_image.data = stbi_load("media/marble.png", &marble_image.x, &marble_image.y, &marble_image.n, 4);
-    marble_texture = my_create_texture(256,256,true,marble_image.data,false,marble_image.n);
-
-    future_texture = 0;
-    future_image.data = stbi_load("media/future.png", &future_image.x, &future_image.y, &future_image.n, 4);
-    future_texture = my_create_texture(256,256,true,future_image.data,false,future_image.n);
+    Entity Rabbit;
+    assign_mesh(Rabbit, "media/rabbit.obj");
+    assign_texture(Rabbit, "media/rabbit.tga");
 
 	// loop
 	const f4 RENDER_MS = 1.0f/60.0f;
@@ -74,19 +62,15 @@ int main(int argc, char* argv[])
 	f4 render_dt = 0.0f;
 	f4 physics_dt = 0.0f;
 	u4 time_physics_prev = SDL_GetTicks();
-	f4 camera_angle = M_PI32/-2.0f;
+	f4 camera_angle = 0.0f;
 	f4 cam_radius = 3.0f;
 	vec3 camera_pos = vec3();
 
+    RigidBody container;
     container.radius = 1.0f;
-    container.pos.x = 0.0f;
-    container.prev_pos.x = 0.0f;
-
-    poolball.pos.x = -0.5f;
-    poolball.prev_pos.x = -0.5f;
-    poolball.pos.z = -0.05f;
-    poolball.prev_pos.z = -0.05f;
-    poolball.velocity.x = 0.025f;
+    container.pos = vec3(0.0f,0.0f,-1.0f);
+    container.prev_pos = container.pos;
+    GLuint container_texture = get_texture("media/circle.png");
 
 	while(!input.quit_app)
 	{
@@ -127,10 +111,10 @@ int main(int argc, char* argv[])
             } marble_force, poolball_force;
 
             // get user input
-            if (single_press(input.d)) { marble_force.dir.x =  1.0f; }
-            if (single_press(input.a)) { marble_force.dir.x = -1.0f; }
-            if (single_press(input.w)) { marble_force.dir.z =  1.0f; }
-            if (single_press(input.s)) { marble_force.dir.z = -1.0f; }
+            if (single_press(input.d)) { marble_force.dir.y = -1.0f; }
+            if (single_press(input.a)) { marble_force.dir.y =  1.0f; }
+            if (single_press(input.w)) { marble_force.dir.x =  1.0f; }
+            if (single_press(input.s)) { marble_force.dir.x = -1.0f; }
 
             marble_force.dir = marble_force.dir.normal();
             poolball_force.length = 0.0f;
@@ -146,33 +130,34 @@ int main(int argc, char* argv[])
                 body.velocity = body.velocity * ground_friction;
             };
 
-            step(marble, marble_force);
-            step(poolball, poolball_force);
+            // move everything
+            step(Tamanegi.body, marble_force);
+            step(Garlic.body, poolball_force);
 
-            // marble + poolball
-            detect_and_apply_collision_circle_circle(marble, poolball);
+            // Tamanegi.body + Garlic.body
+            detect_and_apply_collision_circle_circle(Tamanegi.body, Garlic.body);
 
-            // marble + container
-            if (calculate_PoC_circle_in_circle_minkowski_difference (marble, container))
+            // Tamanegi.body + container
+            if (calculate_PoC_circle_in_circle_minkowski_difference (Tamanegi.body, container))
             {
-                reflect_circle_within_cirle(marble, container.pos);
+                reflect_circle_within_cirle(Tamanegi.body, container.pos);
             }
             else
             {
-                marble.pos = marble.pos + marble.velocity;
+                Tamanegi.body.pos = Tamanegi.body.pos + Tamanegi.body.velocity;
             }
 
-            // poolball + container
-            if (calculate_PoC_circle_in_circle_minkowski_difference (poolball, container))
+            // Garlic.body + container
+            if (calculate_PoC_circle_in_circle_minkowski_difference (Garlic.body, container))
             {
-                reflect_circle_within_cirle(poolball, container.pos);
+                reflect_circle_within_cirle(Garlic.body, container.pos);
             }
             else
             {
-                poolball.pos = poolball.pos + poolball.velocity;
+                Garlic.body.pos = Garlic.body.pos + Garlic.body.velocity;
             }
 		}
-        // cout << "  " << marble.velocity.length() << endl;
+
         f4 alpha = physics_dt / PHYSICS_MS;
 
 		render_dt += frame_time;
@@ -181,15 +166,16 @@ int main(int argc, char* argv[])
 			render_dt = 0;
 
 			f4 posX = cam_radius * cos(camera_angle);
-    		f4 posZ = cam_radius * sin(camera_angle);
+    		f4 posY = cam_radius * sin(camera_angle);
 
-            vec3 pp = camera_pos + vec3(posX, cam_radius, posZ);
+            // X+ left, Y+ left, Z+ up
+            vec3 pp = camera_pos + vec3(-posX, -posY, cam_radius);
             vec3 lookat = camera_pos;
 
 			glm::mat4 view = glm::lookAt(
 				glm::vec3(pp.x,pp.y,pp.z),
 				glm::vec3(lookat.x, lookat.y, lookat.z),
-				glm::vec3(0.0f, 1.0f, 0.0f));
+				glm::vec3(0.0f, 0.0f, 1.0f));
 
 			glm::mat4 projection = glm::perspective(45.0f, 1.0f*sgl.width/sgl.height, 0.1f, 100.0f);
 
@@ -202,48 +188,55 @@ int main(int argc, char* argv[])
 			state.projection = projection;
 			state.world = pp;
 			state.scale = vec3(1.0f,1.0f,1.0f);
-			state.rotation.x = 90.0f * M_DEGTORAD32;
 
             // container
-   //          state.world = container.pos;
-   //          state.scale = vec3(container.radius,container.radius,1.0f);
-   //          state.texture = field_texture;
-			// render_plane(state);
-
-   //          // poolball
-   //          state.world = poolball.prev_pos.lerp(poolball.pos, alpha);
-   //          state.scale = vec3(poolball.radius,poolball.radius,1.0f);
-   //          state.texture = marble_texture;
-   //          render_plane(state);
-
-   //          // marble
-   //          state.world = marble.prev_pos.lerp(marble.pos, alpha);
-   //          state.scale = vec3(marble.radius,marble.radius,1.0f);
-   //          state.texture = marble_texture;
-   //          render_plane(state);
-
-            // mesh
             state.world = container.pos;
-            state.scale = vec3(container.radius,container.radius,1.0f);
-            state.texture = mesh_texture;
+            state.scale = vec3().set(container.radius);
+            state.texture = container_texture;
+            state.rotation = vec3();
+			render_plane(state);
+
+            // rabbit
+            state.world = container.pos + vec3(0.0f,0.0f,container.radius);
+            state.scale = vec3().set(container.radius);
+            state.texture = Rabbit.texture;
             state.rotation.x = 0.0f;
-            render_mesh(state);
+            state.rotation.y = 90.0f * M_DEGTORAD32;
+            state.rotation.z = 90.0f * M_DEGTORAD32;
+            render_mesh(state, library.meshes[Rabbit.mesh]);
+
+            // tamanegi
+            state.world = Tamanegi.body.prev_pos.lerp(Tamanegi.body.pos, alpha);
+            state.scale = vec3().set(Tamanegi.body.radius);
+            state.rotation = vec3();
+            state.texture = Tamanegi.texture;
+            render_mesh(state, library.meshes[Tamanegi.mesh]);
+
+            // garlic
+            state.world = Garlic.body.prev_pos.lerp(Garlic.body.pos, alpha);
+            state.scale = vec3().set(Garlic.body.radius);
+            state.rotation = vec3();
+            state.texture = Garlic.texture;
+            render_mesh(state, library.meshes[Garlic.mesh]);
 
 			SDL_GL_SwapWindow(sgl.window);
 		}
 		memory.transient_current = 0;
 	}
 	
-    // Image data, Texture data
-	stbi_image_free(field_image.data);
-	glDeleteTextures(1,&field_texture);
-    stbi_image_free(marble_image.data);
-    glDeleteTextures(1,&marble_texture);
-    stbi_image_free(future_image.data);
-    glDeleteTextures(1,&future_texture);
-    stbi_image_free(mesh_image.data);
-    glDeleteTextures(1,&mesh_texture);
-	
+    // Texture data
+    for (u4 i = 0; i < library.texture_count; i++)
+    {
+        glDeleteTextures(1,&library.textures[i].id);
+    }
+
+	// Mesh data
+    for (u4 i = 0; i < library.mesh_count; i++)
+    {
+        glDeleteBuffers(1, &library.meshes[i].vertex_buffer);
+        glDeleteBuffers(1, &library.meshes[i].uv_buffer);
+    }
+
     // Shader
 	glDeleteProgram(basic_texture.program);
 	
@@ -252,10 +245,6 @@ int main(int argc, char* argv[])
 	glDeleteBuffers(1, &plane.colors);
 	glDeleteBuffers(1, &plane.indices);
 	glDeleteBuffers(1, &plane.uv_coords);
-
-    // OBJ LOADING
-    glDeleteBuffers(1, &vertexbuffer);
-    glDeleteBuffers(1, &uvbuffer);
 	
     SDL_DestroyWindow( sgl.window );
 	SDL_Quit();

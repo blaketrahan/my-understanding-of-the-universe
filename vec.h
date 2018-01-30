@@ -113,6 +113,9 @@ typedef struct vec3
     inline b4 has_length () {
         return x != 0.0f || y != 0.0f || z != 0.0f;
     }
+    inline vec3 set (f4 v) {
+        return vec3(v,v,v);
+    }
 } vec3;
 
 inline void print(vec3 v)

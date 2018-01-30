@@ -1,21 +1,3 @@
-struct RigidBody {
-    vec3 velocity;
-    vec3 pos = vec3(0.5f,0.0f,0.0f); /* GLOBAL */
-    vec3 prev_pos = vec3(0.5f,0.0f,0.0f); /* GLOBAL */
-
-    f4 radius = 0.1f;
-
-    f4 mass = 10.0f;
-    f4 restitution = 0.75f;
-    f4 friction = 0.75f;
-
-    /*
-        Collision information
-    */
-    vec3 PoC; /* LOCAL */
-    vec3 PoC_on_radius; /* LOCAL */
-} marble, poolball, container;
-
 void reflect_circle_circle (RigidBody &A, RigidBody &B)
 {
     /*
@@ -63,7 +45,7 @@ void reflect_circle_circle (RigidBody &A, RigidBody &B)
 b4 detect_collision_circle_circle_stationary (RigidBody A, RigidBody B)
 {
     /*
-        2D or 3D
+        2D
 
         Detect collision only of:
             1) two stationary circles
@@ -72,13 +54,13 @@ b4 detect_collision_circle_circle_stationary (RigidBody A, RigidBody B)
     */
     f8 x = A.pos.x - B.pos.x;
     x *= x;
-    f8 z = A.pos.z - B.pos.z;
-    z *= z;
+    f8 y = A.pos.y - B.pos.y;
+    y *= y;
 
     f8 r = A.radius + B.radius; 
     r *= r;
 
-    return (x + z <= r);
+    return (x + y <= r);
 }
 
 b4 detect_and_apply_collision_circle_circle (RigidBody &A, RigidBody &B)

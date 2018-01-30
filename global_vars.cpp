@@ -34,6 +34,8 @@
 
 using namespace std;
 
+#include "objectloader.cpp"
+
 struct PRIMITIVE
 {
 	GLuint verts;
@@ -76,9 +78,58 @@ struct IMAGE {
 	int n;
 };
 
-vector<glm::vec3> vertices;
-vector<glm::vec2> uvs;
-vector<glm::vec3> normals;
+struct Library {
+    /*
+        Textures
+    */
+    struct Texture {
+        string name;
+        GLuint id;
+    };
+    Texture* textures = 0;
+    u4 texture_count = 0;
 
-GLuint vertexbuffer;
-GLuint uvbuffer;
+    /*
+        Meshes
+    */
+    struct Mesh {
+        string name;
+        vector<glm::vec3> vertices;
+        vector<glm::vec2> uvs;
+        vector<glm::vec3> normals;
+        GLuint vertex_buffer;
+        GLuint uv_buffer;
+    };
+    Mesh* meshes = 0;
+    u4 mesh_count = 0;
+} library;
+
+struct RigidBody {
+    vec3 velocity; /* LOCAL */
+    vec3 pos; /* GLOBAL */
+    vec3 prev_pos; /* GLOBAL */
+
+    f4 radius = 0.1f;
+
+    f4 mass = 10.0f;
+    f4 restitution = 0.75f;
+    f4 friction = 0.75f;
+
+    /*
+        Collision information
+    */
+    vec3 PoC; /* LOCAL */
+    vec3 PoC_on_radius; /* LOCAL */
+};
+
+struct Entity {
+    /*
+        Physics
+    */
+    RigidBody body;
+    /*
+        Rendering
+    */
+    u4 mesh;
+    GLuint texture;
+};

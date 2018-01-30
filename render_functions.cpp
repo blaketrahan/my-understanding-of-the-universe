@@ -39,7 +39,7 @@ void render_plane(RENDER_STATE &rs)
 	glDisableVertexAttribArray(basic_texture.attribute_tex_coord2d);
 }
 
-void render_mesh(RENDER_STATE &rs)
+void render_mesh(RENDER_STATE &rs, Library::Mesh &mesh)
 {
     glBindTexture(GL_TEXTURE_2D, rs.texture);
 
@@ -64,7 +64,7 @@ void render_mesh(RENDER_STATE &rs)
 
 
     glEnableVertexAttribArray(basic_texture.attribute_coord3d);
-    glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);
+    glBindBuffer(GL_ARRAY_BUFFER, mesh.vertex_buffer);
     glVertexAttribPointer(
             basic_texture.attribute_coord3d, // attribute
             3,                  // size
@@ -76,7 +76,7 @@ void render_mesh(RENDER_STATE &rs)
 
         // 2nd attribute buffer : UVs
     glEnableVertexAttribArray(basic_texture.attribute_tex_coord2d);
-        glBindBuffer(GL_ARRAY_BUFFER, uvbuffer);
+        glBindBuffer(GL_ARRAY_BUFFER, mesh.uv_buffer);
         glVertexAttribPointer(
             basic_texture.attribute_tex_coord2d, // attribute
             2,                                // size
@@ -87,7 +87,7 @@ void render_mesh(RENDER_STATE &rs)
         );
 
         // Draw the triangle !
-        glDrawArrays(GL_TRIANGLES, 0, vertices.size() );
+        glDrawArrays(GL_TRIANGLES, 0, mesh.vertices.size() );
 
     glDisableVertexAttribArray(basic_texture.attribute_coord3d);
     glDisableVertexAttribArray(basic_texture.attribute_tex_coord2d);
