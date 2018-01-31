@@ -1,3 +1,21 @@
+
+inline f4 distance_between (vec3 a, vec3 b) {
+    return sqrt(((b.x - a.x) * (b.x - a.x)) + ((b.y - a.y) * (b.y - a.y)) + ((b.z - a.z) * (b.z - a.z)));
+}
+
+inline vec3 reflect_circle_line ( vec3 circle_velocity, vec3 surface_normal )
+{
+    /* Assumes unit circle */
+    
+    // https://stackoverflow.com/questions/573084/how-to-calculate-bounce-angle
+    f4 scalar_product = circle_velocity.dot(surface_normal);
+
+    vec3 U = surface_normal * scalar_product;
+    vec3 W = circle_velocity - U;
+
+    return W - U;
+}
+
 void reflect_circle_circle (RigidBody &A, RigidBody &B)
 {
     /*

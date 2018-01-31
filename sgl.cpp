@@ -55,8 +55,6 @@ b4 create_sdl_opengl_window ()
     // SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     // SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 16);
 
-
-
     return true;
 }
 
@@ -115,9 +113,6 @@ GLuint my_create_texture (s4 sw, s4 sh, b4 alpha, unsigned char* image_data = 0,
     // "Bind" the newly created texture : all future texture functions will modify this texture
     glBindTexture(GL_TEXTURE_2D, textureID);
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
     if (is_render_target)
     {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
@@ -142,6 +137,16 @@ GLuint my_create_texture (s4 sw, s4 sh, b4 alpha, unsigned char* image_data = 0,
         else if(comp == 4)
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, image_data);
     }
+
+    // @todo: understand mipmap generation better.
+    
+    // Mipmaps
+    glGenerateMipmap(GL_TEXTURE_2D);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+
     return textureID;
 }
 

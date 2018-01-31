@@ -28,7 +28,7 @@
 #include "stb_image.h"
 
 #include "memory.h"
-#include "vec.h"
+#include "math3D.h"
 
 #define DEBUG_BUILD
 
@@ -127,4 +127,6 @@ struct Entity
     /* Rendering */
     u4 mesh;
     GLuint texture;
+    vec3 scale;
+    vec3 rotation;
 };

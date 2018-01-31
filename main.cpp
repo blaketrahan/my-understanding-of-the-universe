@@ -29,9 +29,10 @@ int main(int argc, char* argv[])
 
     load_texture("media/circle.png", 256, 256, 4);
     load_texture("media/rabbit.tga", 1024, 1024, 3);
-    load_texture("media/tamanegi.png", 1024, 1024, 4);
-    load_texture("media/garlic.png", 1024, 1024, 3);
+    load_texture("media/steel.png", 1024, 1024, 3);
+    load_texture("media/aluminum.png", 1024, 1024, 3);
     load_texture("media/pusher.png", 256, 256, 4);
+    load_texture("media/floor.png", 1024, 1024, 3);
 
     load_mesh("media/tamanegi.obj");
     load_mesh("media/rabbit.obj");
@@ -42,25 +43,44 @@ int main(int argc, char* argv[])
     */
     Entity Tamanegi;
     assign_mesh(Tamanegi, "media/tamanegi.obj");
-    assign_texture(Tamanegi, "media/tamanegi.png");
+    assign_texture(Tamanegi, "media/steel.png");
     Tamanegi.body.radius = 0.1f;
     Tamanegi.body.pos = vec3(0.0f,0.0f,-0.5f);
     Tamanegi.body.prev_pos = Tamanegi.body.pos;
+    Tamanegi.scale = vec3().set(Tamanegi.body.radius);
 
     Entity Pusher;
     assign_mesh(Pusher, "media/pusher.obj");
     assign_texture(Pusher, "media/pusher.png");
+    Pusher.body.radius = 0.1f;
+    Pusher.scale = vec3().set(Pusher.body.radius);
 
     Entity Garlic;
     assign_mesh(Garlic, "media/tamanegi.obj");
-    assign_texture(Garlic, "media/garlic.png");
+    assign_texture(Garlic, "media/aluminum.png");
     Garlic.body.radius = 0.1f;
+    Garlic.body.mass = 5.5f;
     Garlic.body.pos = vec3(0.5f,0.0f,-0.5f);
     Garlic.body.prev_pos = Garlic.body.pos;
+    Garlic.scale = vec3().set(Garlic.body.radius);
 
     Entity Rabbit;
     assign_mesh(Rabbit, "media/rabbit.obj");
     assign_texture(Rabbit, "media/rabbit.tga");
+    Rabbit.body.radius = 1.0f;
+    Rabbit.body.pos.y = 1.5f;
+    Rabbit.body.prev_pos = Rabbit.body.pos;
+    Rabbit.scale = vec3().set(Rabbit.body.radius); 
+    Rabbit.rotation.x = 0.0f;
+    Rabbit.rotation.y = 90.0f * M_DEGTORAD32;
+    Rabbit.rotation.z = 90.0f * M_DEGTORAD32;
+
+    Entity Floor;
+    Floor.body.radius = 1.0f;
+    Floor.body.pos = vec3(0.0f,0.0f,-0.75f);
+    Floor.body.prev_pos = Floor.body.pos;
+    Floor.texture = get_texture("media/floor.png");
+    Floor.scale = vec3().set(Floor.body.radius);
 
     RigidBody container;
     container.radius = 1.0f;
@@ -124,6 +144,8 @@ int main(int argc, char* argv[])
             // apply friction
             const f4 ground_friction = 0.985f;
 
+            const vec3 gravity = vec3(0.0f,0.0f,-0.001f);
+
             // user input
             vec3 push_direction = vec3(camera_pos_on_radius * vec3(-1.0f,-1.0f,0.0f)).normal();
             f4 push_length = 0.0f;
@@ -132,7 +154,7 @@ int main(int argc, char* argv[])
 
             Tamanegi.body.user_force = Tamanegi.body.user_force + (push_direction * push_length);
 
-            auto step = [ground_friction] (RigidBody &body) {
+            auto step = [ground_friction, gravity] (RigidBody &body) {
                 // store last position
                 body.prev_pos = body.pos;
 
@@ -141,6 +163,9 @@ int main(int argc, char* argv[])
 
                 // apply friction
                 body.velocity = body.velocity * ground_friction;
+
+                // add gravity
+                body.velocity = body.velocity + gravity;
 
                 // erase user forces
                 body.user_force = vec3();
@@ -153,6 +178,24 @@ int main(int argc, char* argv[])
             // Tamanegi.body + Garlic.body
             detect_and_apply_collision_circle_circle(Tamanegi.body, Garlic.body);
 
+
+            auto calculate_PoC_sphere_plane = [] (RigidBody &Sphere, vec3 plane_normal)
+            {
+                vec3 P = Sphere.pos;
+                vec3 N = plane_normal;
+                vec3 V = Sphere.velocity;
+                f4 d;
+
+                /*
+                    Ray - Plane intersection
+                    Source:
+                        https://www.cs.princeton.edu/courses/archive/fall00/cs426/lectures/raycast/sld017.htm
+                        https://www.siggraph.org/education/materials/HyperGraph/raytrace/rayplane_intersection.htm
+                */
+                f4 t = ((P.dot(N) + d) * -1.0f) / (V.dot(N));
+                vec3 PoC = P + (V * t);
+            };
+
             // Tamanegi.body + container
             if (calculate_PoC_circle_in_circle_minkowski_difference (Tamanegi.body, container))
             {
@@ -164,14 +207,14 @@ int main(int argc, char* argv[])
             }
 
             // Garlic.body + container
-            if (calculate_PoC_circle_in_circle_minkowski_difference (Garlic.body, container))
-            {
-                reflect_circle_within_cirle(Garlic.body, container.pos);
-            }
-            else
-            {
+            // if (calculate_PoC_circle_in_circle_minkowski_difference (Garlic.body, container))
+            // {
+            //     reflect_circle_within_cirle(Garlic.body, container.pos);
+            // }
+            // else
+            // {
                 Garlic.body.pos = Garlic.body.pos + Garlic.body.velocity;
-            }
+            // }
 		}
 
         f4 alpha = physics_dt / PHYSICS_MS;
@@ -195,46 +238,22 @@ int main(int argc, char* argv[])
 			glClearColor(0.23f,0.47f,0.58f,1.0f); 
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-			RENDER_STATE state;
-			state.view = view;
-			state.projection = projection;
+            auto render = [alpha, view, projection] (Entity &entity)
+            {
+                RENDER_STATE state;
+                state.view = view;
+                state.projection = projection;
+                state.world = entity.body.prev_pos.lerp(entity.body.pos, alpha);
+                state.scale = vec3().set(entity.body.radius);
+                state.texture = entity.texture;
+                state.rotation = entity.rotation;
+                render_mesh(state, library.meshes[entity.mesh]);
+            };
 
-            // container
-   //          state.world = container.pos;
-   //          state.scale = vec3().set(container.radius);
-   //          state.texture = container_texture;
-   //          state.rotation = vec3();
-			// render_plane(state);
-
-            // rabbit
-            state.world = container.pos + vec3(0.0f,2.0f,0.0f);
-            state.scale = vec3().set(container.radius);
-            state.texture = Rabbit.texture;
-            state.rotation.x = 0.0f;
-            state.rotation.y = 90.0f * M_DEGTORAD32;
-            state.rotation.z = 90.0f * M_DEGTORAD32;
-            render_mesh(state, library.meshes[Rabbit.mesh]);
-
-            // tamanegi
-            state.world = Tamanegi.body.prev_pos.lerp(Tamanegi.body.pos, alpha);
-            state.scale = vec3().set(Tamanegi.body.radius);
-            state.rotation = vec3();
-            state.texture = Tamanegi.texture;
-            render_mesh(state, library.meshes[Tamanegi.mesh]);
-
-            // garlic
-            state.world = Garlic.body.prev_pos.lerp(Garlic.body.pos, alpha);
-            state.scale = vec3().set(Garlic.body.radius);
-            state.rotation = vec3();
-            state.texture = Garlic.texture;
-            render_mesh(state, library.meshes[Garlic.mesh]);
-
-            // pusher
-            state.world = Pusher.body.prev_pos.lerp(Pusher.body.pos, alpha);
-            state.scale = vec3().set(Pusher.body.radius);
-            state.rotation = vec3();
-            state.texture = Pusher.texture;
-            render_mesh(state, library.meshes[Pusher.mesh]);
+            render(Tamanegi);
+            render(Garlic);
+            render(Pusher);
+            render(Rabbit);
 
 			SDL_GL_SwapWindow(sgl.window);
 		}
