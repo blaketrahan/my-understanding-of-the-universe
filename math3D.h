@@ -48,118 +48,111 @@ f4 rotation_matrix[4][16] =
     }
 };
 
-typedef struct mat4
-{
-    f4 e[4][4];
-
-    inline mat4 identity ()
-    {
-        mat4 r;
-        f4 d = 1.0f;
-        r.e[0][0] =   d; r.e[1][0] = .0f; r.e[2][0] = .0f; r.e[3][0] = .0f;
-        r.e[0][1] = .0f; r.e[1][1] =   d; r.e[2][1] = .0f; r.e[3][1] = .0f;
-        r.e[0][2] = .0f; r.e[1][2] = .0f; r.e[2][2] =   d; r.e[3][2] = .0f;
-        r.e[0][3] = .0f; r.e[1][3] = .0f; r.e[2][3] = .0f; r.e[3][3] =   d;
-        return r;
-    }
-
-} mat4;
-
 /*
     3D Vector
 */
-typedef struct vec3
+struct vec3
 {
-    f4 x,y,z;
-
-    vec3 (f4 mx = 0.0f, f4 my = 0.0f, f4 mz = 0.0f)
-        : x(mx), y(my), z(mz) {}
-
-    inline vec3 operator + ( const vec3 &v )
-    {
-        vec3 r;
-        r.x = x + v.x;
-        r.y = y + v.y;
-        r.z = z + v.z;
-        return r;
-    }
-    inline vec3 operator - ( const vec3 &v )
-    {
-        vec3 r;
-        r.x = x - v.x;
-        r.y = y - v.y;
-        r.z = z - v.z;
-        return r;
-    }
-    inline vec3 operator * ( f4 scalar )
-    {
-        vec3 r;
-        r.x = x * scalar;
-        r.y = y * scalar;
-        r.z = z * scalar;
-        return r;
-    }
-    inline vec3 operator * ( vec3 v )
-    {
-        vec3 r;
-        r.x = x * v.x;
-        r.y = y * v.y;
-        r.z = z * v.z;
-        return r;
-    }
-    inline vec3 operator / ( f4 scalar )
-    {
-        vec3 r;
-        r.x = x / scalar;
-        r.y = y / scalar;
-        r.z = z / scalar;
-        return r;
-    }
-    inline b4 operator == ( vec3 v )
-    {
-        return (v.x == x && v.y == y && v.z == z);
-    }
-    inline b4 operator != ( vec3 v )
-    {
-        return v.x != x || v.y != y || v.z != z;
-    }
-    inline vec3 normal ()
-    {
-        f4 magnitude = sqrt((x * x) + (y * y) + (z * z));
-        if (magnitude == 0.0f)
-        {
-            return vec3(0.0f,0.0f,0.0f);
-        }
-        else {
-            return vec3(x / magnitude, y / magnitude, z / magnitude);
-        }
-    }
-    inline f4 length ()
-    {
-        return sqrt((x * x) + (y * y) + (z * z));
-    }
-    inline f4 dot (vec3 v)
-    {
-        return (x * v.x) + (y * v.y) + (z * v.z);
-    }
-    inline vec3 lerp (vec3 target, f4 alpha)
-    {
-        return (target * alpha) + (vec3(x,y,z) * (1.0f - alpha));
-    }
-    inline b4 has_length ()
-    {
-        return x != 0.0f || y != 0.0f || z != 0.0f;
-    }
-    inline vec3 set (f4 v)
-    {
-        return vec3(v,v,v);
-    }
-    inline void print ()
-    {
-        std::cout << "(" << x << ", " << y << ", " << z << ")" << std::endl;
-    }
-} vec3;
-
+    f4 x = 0.0f;
+    f4 y = 0.0f;
+    f4 z = 0.0f;
+};
+inline vec3 operator + (vec3 a, vec3 b)
+{
+    vec3 r;
+    r.x = a.x + b.x;
+    r.y = a.y + b.y;
+    r.z = a.z + b.z;
+    return r;
+}
+inline vec3 operator - (vec3 a, vec3 b)
+{
+    vec3 r;
+    r.x = a.x - b.x;
+    r.y = a.y - b.y;
+    r.z = a.z - b.z;
+    return r;
+}
+inline vec3 operator * (vec3 v, f4 scalar)
+{
+    vec3 r;
+    r.x = v.x * scalar;
+    r.y = v.y * scalar;
+    r.z = v.z * scalar;
+    return r;
+}
+inline vec3 operator * (vec3 a, vec3 b)
+{
+    vec3 r;
+    r.x = a.x * b.x;
+    r.y = a.y * b.y;
+    r.z = a.z * b.z;
+    return r;
+}
+inline vec3 lerp (vec3 a, vec3 b, f4 alpha)
+{
+    vec3 r;
+    f4 t = 1.0f - alpha;
+    r.x = (b.x * alpha) + (a.x * t);
+    r.y = (b.y * alpha) + (a.y * t);
+    r.z = (b.z * alpha) + (a.z * t);
+    return r;
+}
+inline vec3 operator / (vec3 v, f4 scalar)
+{
+    vec3 r;
+    r.x = v.x / scalar;
+    r.y = v.y / scalar;
+    r.z = v.z / scalar;
+    return r;
+}
+inline f4 dot (vec3 a, vec3 b)
+{
+    return ( (a.x * b.x) + (a.y * b.y) + (a.z * b.z) );
+}
+inline f4 length (vec3 v)
+{
+    return sqrtf(dot(v,v));
+}
+inline vec3 normal (vec3 v)
+{
+    vec3 r;
+    f4 magnitude = length(v);
+    r = v / magnitude;
+    return r;
+}
+inline f4 length_squared (vec3 v)
+{
+    return dot(v,v);
+}
+inline f4 has_length (vec3 v)
+{
+    return length_squared(v);
+}
+inline vec3 setv (f4 scalar)
+{
+    vec3 r;
+    r.x = scalar;
+    r.y = scalar;
+    r.z = scalar;
+    return r;
+}
+inline vec3 setv (f4 x, f4 y, f4 z)
+{
+    vec3 r;
+    r.x = x;
+    r.y = y;
+    r.z = z;
+    return r;
+}
+inline vec3 weighted_average (vec3 a, vec3 b, f4 weight)
+{
+    vec3 r;
+    r.x = ((a.x * (weight - 1)) + b.x) / weight;
+    r.y = ((a.y * (weight - 1)) + b.y) / weight;
+    r.z = ((a.z * (weight - 1)) + b.z) / weight;
+    return r;
+}
 /*
     Quaternion
 
@@ -169,188 +162,144 @@ typedef struct vec3
         https://www.youtube.com/watch?v=SDS5gLSiLg0&t=1934s
         https://github.com/HandmadeMath/Handmade-Math/blob/master/HandmadeMath.
         http://quaternions.online/
+        https://www.3dgep.com/understanding-quaternions/
+        https://www.youtube.com/playlist?list=PLi1nGcVzHwvNCML2OoO5ZPvnLN1mdfvS4
 */
-typedef struct quaternion
+struct quat
 {
-    f4 w,x,y,z;
+    f4 w = 1.0f;
+    f4 x = 0.0f;
+    f4 y = 0.0f;
+    f4 z = 0.0f;
+};
+inline f4 dot (quat a, quat b)
+{
+    return ((a.x * b.x) + (a.y * b.y) + (a.z * b.z) + (a.w * b.w));
+}
+inline f4 length (quat q)
+{
+    return sqrtf(dot(q,q));
+}
+inline quat operator / (quat q, f4 scalar)
+{
+    quat r;
+    r.w = q.w / scalar;
+    r.x = q.x / scalar;
+    r.y = q.y / scalar;
+    r.z = q.z / scalar;
+    return r;
+}
+inline quat normal (quat q)
+{   
+    quat r;
+    f4 magnitude = length(q);
+    r = q / magnitude;
+    return r;
+}
+inline quat operator * (quat a, quat b)
+{
+    quat r;
+    r.w = a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z;
+    r.x = a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y;
+    r.y = a.w * b.y + a.y * b.w + a.z * b.x - a.x * b.z;
+    r.z = a.w * b.z + a.z * b.w + a.x * b.y - a.y * b.x;
+    return r;
+}
+inline quat operator * (quat q, f4 scalar)
+{
+    quat r;
+    r.w = q.w * scalar;
+    r.x = q.x * scalar;
+    r.y = q.y * scalar;
+    r.z = q.z * scalar;
+    return r;
+}
+glm::mat4 glm_matrix (quat q)
+{
+    /*
+        @todo: learn more about this, verify this is correct
+    */
+    quat qn = normal(q);
+    
+    f4    XX, YY, ZZ,
+          XY, XZ, YZ,
+          WX, WY, WZ;
 
-    quaternion (f4 mw = 0.0f, f4 mx = 0.0f, f4 my = 0.0f, f4 mz = 0.0f)
-        : w(mw), x(mx), y(my), z(mz) {}
+    XX = qn.x * qn.x;
+    YY = qn.y * qn.y;
+    ZZ = qn.z * qn.z;
+    XY = qn.x * qn.y;
+    XZ = qn.x * qn.z;
+    YZ = qn.y * qn.z;
+    WX = qn.w * qn.x;
+    WY = qn.w * qn.y;
+    WZ = qn.w * qn.z;
 
-    inline f4 length ()
-    {
-        return sqrt((w * w) + (x * x) + (y * y) + (z * z));
-    }
+    glm::mat4 m(    
+        1.0f - 2.0f * (YY + ZZ), 2.0f * (XY - WZ),        2.0f * (XZ + WY),        0.0f,
+        2.0f * (XY + WZ),        1.0f - 2.0f * (XX + ZZ), 2.0f * (YZ - WX),        0.0f,
+        2.0f * (XZ - WY),        2.0f * (YZ + WX),        1.0f - 2.0f * (XX + YY), 0.0f,
+        0.0f,                    0.0f,                    0.0f,                    1.0f
+    );
 
-    inline f4 length_squared ()
-    {
-        return ((w * w) + (x * x) + (y * y) + (z * z));
-    }
+    return m;
+}
+quat quat_from_axis (vec3 axis, f4 angle)
+{
+    /*
+        @todo: learn more about this, verify this is correct
+    */
+    quat r;
 
-    inline quaternion normal ()
-    {   
-        f4 magnitude = sqrt((w * w) + (x * x) + (y * y) + (z * z));
-        if (magnitude == 0.0f)
-        {
-            return quaternion(0.0f, 0.0f,0.0f,0.0f);
-        }
-        else {
-            return quaternion(w / magnitude, x / magnitude, y / magnitude, z / magnitude);
-        }
-    }
+    angle = angle * M_DEGTORAD32;
+    
+    f4 axis_length = length(axis);
+    f4 sine = sinf(angle / 2.0f);
 
-    inline quaternion operator + (quaternion q)
-    {
-        quaternion r;
-        r.w = w + q.w;
-        r.x = x + q.x;
-        r.y = y + q.y;
-        r.z = z + q.z;
-        return r;
-    }
+    vec3 rotated_vector = axis * sine;
+    rotated_vector = rotated_vector / axis_length;
 
-    inline quaternion operator - (quaternion q)
-    {
-        quaternion r;
-        r.w = w - q.w;
-        r.x = x - q.x;
-        r.y = y - q.y;
-        r.z = z - q.z;
-        return r;
-    }
+    r.w = cosf(angle / 2.0f);
+    r.x = rotated_vector.x;
+    r.y = rotated_vector.y;
+    r.z = rotated_vector.z;
 
-    inline quaternion operator * (quaternion q)
-    {
-        quaternion r;
-        r.w = w * q.w - x * q.x - y * q.y - z * q.z;
-        r.x = w * q.x + x * q.w + y * q.z - z * q.y;
-        r.y = w * q.y + y * q.w + z * q.x - x * q.z;
-        r.z = w * q.z + z * q.w + x * q.y - y * q.x;
-        return r;
-    }
+    return r;
+}
+quat quat_axis_z (f4 angle)
+{
+    quat r;
+    angle = angle * M_DEGTORAD32;
 
-    inline quaternion operator * (f4 scalar)
-    {
-        quaternion r;
-        r.w = w * scalar;
-        r.x = x * scalar;
-        r.y = y * scalar;
-        r.z = z * scalar;
-        return r;
-    }
+    r.w = cosf(angle / 2.0f);
+    r.x = 0.0f;
+    r.y = 0.0f;
+    r.z = 1.0f * sinf(angle / 2.0f);
 
-    inline quaternion operator / (f4 scalar)
-    {
-        quaternion r;
-        r.w = w / scalar;
-        r.x = x / scalar;
-        r.y = y / scalar;
-        r.z = z / scalar;
-        return r;
-    }
+    return r;
+}
+quat quat_axis_x (f4 angle)
+{
+    quat r;
+    angle = angle * M_DEGTORAD32;
 
-    inline f4 dot (quaternion q)
-    {
-        return ((x * q.x) + (y * q.y) + (z * q.z) + (w * q.w));
-    }
+    r.w = cosf(angle / 2.0f);
+    r.x = 1.0f * sinf(angle / 2.0f);
+    r.y = 0.0f;
+    r.z = 0.0f;
 
-    inline quaternion lerp (quaternion target, f4 alpha)
-    {
-        quaternion r;
-        
-        r.w = (target.w * alpha) + (w * (1.0f - alpha));
-        r.x = (target.x * alpha) + (x * (1.0f - alpha));
-        r.y = (target.y * alpha) + (y * (1.0f - alpha));
-        r.z = (target.z * alpha) + (z * (1.0f - alpha));
+    return r;
+}
+quat quat_axis_y (f4 angle)
+{
+    quat r;
+    angle = angle * M_DEGTORAD32;
 
-        return r.normal();
-    }
-    quaternion inverse ()
-    {
-        /*
-            @todo: learn more about the inverse
-        */
-        quaternion conjugate;
-        quaternion r;
+    r.w = cosf(angle / 2.0f);
+    r.x = 0.0f;
+    r.y = 1.0f * sinf(angle / 2.0f);
+    r.z = 0.0f;
 
-        f4 length = 0;
-        f4 length_squared = 0;
-
-        conjugate.w =  w;
-        conjugate.x = -x;
-        conjugate.y = -y;
-        conjugate.z = -z;
-
-        length_squared = quaternion(w,x,y,z).length_squared();
-
-        r.w = conjugate.w / length_squared;
-        r.x = conjugate.x / length_squared;
-        r.y = conjugate.y / length_squared;
-        r.z = conjugate.z / length_squared;
-
-        return r;
-    }
-
-    mat4 matrix ()
-    {
-        /*
-            @todo: learn more about this, verify this is correct
-        */
-        mat4 r;
-        r = r.identity();
-
-        quaternion qn = quaternion(w,x,y,z).normal();
-        
-        f4    XX, YY, ZZ,
-              XY, XZ, YZ,
-              WX, WY, WZ;
-
-        XX = qn.x * qn.x;
-        YY = qn.y * qn.y;
-        ZZ = qn.z * qn.z;
-        XY = qn.x * qn.y;
-        XZ = qn.x * qn.z;
-        YZ = qn.y * qn.z;
-        WX = qn.w * qn.x;
-        WY = qn.w * qn.y;
-        WZ = qn.w * qn.z;
-
-        r.e[0][0] = 1.0f - 2.0f * (YY + ZZ);
-        r.e[0][1] = 2.0f * (XY + WZ);
-        r.e[0][2] = 2.0f * (XZ - WY);
-
-        r.e[1][0] = 2.0f * (XY - WZ);
-        r.e[1][1] = 1.0f - 2.0f * (XX + ZZ);
-        r.e[1][2] = 2.0f * (YZ + WX);
-
-        r.e[2][0] = 2.0f * (XZ + WY);
-        r.e[2][1] = 2.0f * (YZ - WX);
-        r.e[2][2] = 1.0f - 2.0f * (XX + YY);
-
-        return r;
-    }
-
-    quaternion from_axis_angle (vec3 axis, f4 angle)
-    {
-        /*
-            @todo: learn more about this, verify this is correct
-        */
-        quaternion r;
-        
-        f4 axis_length = axis.length();
-        f4 sine = sin(angle / 2.0f);
-
-        vec3 rotated_vector = axis * sine;
-        rotated_vector = rotated_vector / axis_length;
-
-        r.w = cos(angle / 2.0f);
-        r.x = rotated_vector.x;
-        r.y = rotated_vector.y;
-        r.z = rotated_vector.z;
-
-        return r;
-    }
-
-} quaternion;
-
+    return r;
+}
 #endif

@@ -50,6 +50,7 @@ struct BASIC_TEXTURE_SHADER {
 	GLint uniform_view;
 	GLint uniform_proj;
 	GLint uniform_scale;
+    GLint uniform_rotation;
 	GLint uniform_tex_source;
 	GLint attribute_coord3d;
 	GLint attribute_tex_coord2d;
@@ -69,6 +70,7 @@ struct RENDER_STATE {
 	vec3 world;
 	vec3 scale;
 	GLuint texture;
+    quat orient;
 };
 
 struct IMAGE {
@@ -123,6 +125,7 @@ struct Entity
 {
     /* Physics */
     RigidBody body;
+    quat orient;
 
     /* Rendering */
     u4 mesh;

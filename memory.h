@@ -13,12 +13,12 @@
 #define Megabytes(Value) (Kilobytes(Value)*1024)
 #define Gigabytes(Value) (Megabytes(Value)*1024)
 
-typedef int8_t  s1;   // 8 bits, 1 bytes
-typedef int16_t s2;  // 16 bits, 2 bytes
+typedef int8_t  s1;
+typedef int16_t s2;
 typedef int32_t s4;
-typedef int64_t s8;  // 64 bits, 8 bytes
+typedef int64_t s8;
 
-typedef int32_t b4;   // 32 bits, 8 bytes
+typedef int32_t b4;
 
 typedef uint8_t  u1;
 typedef uint16_t u2;
@@ -27,19 +27,6 @@ typedef uint64_t u8;
 
 typedef float  f4;
 typedef double f8;
-
-// -- OLD TYPEDEFS --
-typedef int8_t  int8;   // 8 bits, 1 bytes
-typedef int16_t int16;  // 16 bits, 2 bytes
-typedef int32_t int32;  // 32 bits, 4 bytes
-typedef int64_t int64;  // 64 bits, 8 bytes
-typedef int32 bool32;   // 32 bits, 8 bytes
-typedef uint8_t uint8;
-typedef uint16_t uint16;
-typedef uint32_t uint32;
-typedef uint64_t uint64; 
-typedef float  d32;
-typedef double d64;
 
 #define MEM_DEBUG
 

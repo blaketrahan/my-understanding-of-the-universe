@@ -18,8 +18,6 @@ int main(int argc, char* argv[])
         cout << "ERROR: failed to create sdl or opengl" << endl;
     }
 
-    create_plane();
-
     if (!create_basic_texture_shader()) return 0;
 
     library.texture_count = 20;
@@ -42,49 +40,47 @@ int main(int argc, char* argv[])
         Entities
     */
     Entity Tamanegi;
-    assign_mesh(Tamanegi, "media/tamanegi.obj");
-    assign_texture(Tamanegi, "media/steel.png");
+    Tamanegi.mesh = get_mesh("media/tamanegi.obj");
+    Tamanegi.texture = get_texture("media/steel.png");
     Tamanegi.body.radius = 0.1f;
-    Tamanegi.body.pos = vec3(0.0f,0.0f,-0.5f);
+    Tamanegi.body.pos = setv(0.0f,0.0f,-0.5f);
     Tamanegi.body.prev_pos = Tamanegi.body.pos;
-    Tamanegi.scale = vec3().set(Tamanegi.body.radius);
+    Tamanegi.scale = setv(Tamanegi.body.radius);
 
     Entity Pusher;
-    assign_mesh(Pusher, "media/pusher.obj");
-    assign_texture(Pusher, "media/pusher.png");
+    Pusher.mesh = get_mesh("media/pusher.obj");
+    Pusher.texture = get_texture("media/pusher.png");
     Pusher.body.radius = 0.1f;
-    Pusher.scale = vec3().set(Pusher.body.radius);
+    Pusher.scale = setv(Pusher.body.radius);
 
     Entity Garlic;
-    assign_mesh(Garlic, "media/tamanegi.obj");
-    assign_texture(Garlic, "media/aluminum.png");
+    Garlic.mesh = get_mesh("media/tamanegi.obj");
+    Garlic.texture = get_texture("media/aluminum.png");
     Garlic.body.radius = 0.1f;
     Garlic.body.mass = 5.5f;
-    Garlic.body.pos = vec3(0.5f,0.0f,-0.5f);
+    Garlic.body.pos = setv(0.5f,0.0f,-0.5f);
     Garlic.body.prev_pos = Garlic.body.pos;
-    Garlic.scale = vec3().set(Garlic.body.radius);
+    Garlic.scale = setv(Garlic.body.radius);
 
     Entity Rabbit;
-    assign_mesh(Rabbit, "media/rabbit.obj");
-    assign_texture(Rabbit, "media/rabbit.tga");
+    Rabbit.mesh = get_mesh("media/rabbit.obj");
+    Rabbit.texture = get_texture("media/rabbit.tga");
     Rabbit.body.radius = 1.0f;
     Rabbit.body.pos.y = 1.5f;
     Rabbit.body.prev_pos = Rabbit.body.pos;
-    Rabbit.scale = vec3().set(Rabbit.body.radius); 
-    Rabbit.rotation.x = 0.0f;
-    Rabbit.rotation.y = 90.0f * M_DEGTORAD32;
-    Rabbit.rotation.z = 90.0f * M_DEGTORAD32;
+    Rabbit.scale = setv(Rabbit.body.radius);
+    Rabbit.orient = quat_axis_z(-90.0f) * quat_axis_y(-90.0f);
 
     Entity Floor;
     Floor.body.radius = 1.0f;
-    Floor.body.pos = vec3(0.0f,0.0f,-0.75f);
+    Floor.body.pos = setv(0.0f,0.0f,-0.75f);
     Floor.body.prev_pos = Floor.body.pos;
     Floor.texture = get_texture("media/floor.png");
-    Floor.scale = vec3().set(Floor.body.radius);
+    Floor.scale = setv(Floor.body.radius);
 
     RigidBody container;
     container.radius = 1.0f;
-    container.pos = vec3(0.0f,0.0f,-1.0f);
+    container.pos = setv(0.0f,0.0f,-1.0f);
     container.prev_pos = container.pos;
     GLuint container_texture = get_texture("media/circle.png");
 
@@ -96,8 +92,8 @@ int main(int argc, char* argv[])
 	u4 time_physics_prev = SDL_GetTicks();
 	f4 camera_angle = 0.0f;
 	f4 cam_radius = 3.0f;
-	vec3 camera_pos = vec3();
-    vec3 camera_pos_on_radius = vec3();
+	vec3 camera_pos;
+    vec3 camera_pos_on_radius;
 
 	while(!input.quit_app)
 	{
@@ -118,36 +114,40 @@ int main(int argc, char* argv[])
 		{
 			physics_dt -= PHYSICS_MS;
 
-            if (input.right)
-            {
+            /*
+                Camera
+            */
+            if (input.right) {
                 camera_angle -= M_PI32 * 0.01f;
                 camera_angle = camera_angle < 0.0f ? camera_angle = M_PI32 * 2.0f + camera_angle : camera_angle;
             }
-            if (input.left)
-            {
+            if (input.left) {
                 camera_angle += M_PI32 * 0.01f;
                 camera_angle = camera_angle >  M_PI32 * 2.0f ? camera_angle - (M_PI32 * 2.0f) : camera_angle;
             }
+            if (input.up) { 
+                cam_radius -= M_PI32 * 0.01f;
+            }
+            if (input.down) {
+                cam_radius += M_PI32 * 0.01f;
+            }
 
-            if (input.up)    { cam_radius -= M_PI32 * 0.01f; }
-            if (input.down)  { cam_radius += M_PI32 * 0.01f; }
-
-			f4 W = 20.0f;
-			camera_pos.x = ((camera_pos.x * (W - 1)) + Tamanegi.body.pos.x) / W;
-			camera_pos.y = ((camera_pos.y * (W - 1)) + Tamanegi.body.pos.y) / W;
-			camera_pos.z = ((camera_pos.z * (W - 1)) + Tamanegi.body.pos.z) / W;
+            camera_pos = weighted_average(camera_pos, Rabbit.body.pos, 20.0f);
 
             f4 cPosX = cam_radius * cos(camera_angle);
             f4 cPosY = cam_radius * sin(camera_angle);
-            camera_pos_on_radius = vec3(-cPosX, -cPosY, cam_radius);
+            camera_pos_on_radius = setv(-cPosX, -cPosY, cam_radius);
             
+            /*
+                Physics
+            */
             // apply friction
             const f4 ground_friction = 0.985f;
 
-            const vec3 gravity = vec3(0.0f,0.0f,-0.001f);
+            const vec3 gravity = setv(0.0f,0.0f,-0.0025f);
 
             // user input
-            vec3 push_direction = vec3(camera_pos_on_radius * vec3(-1.0f,-1.0f,0.0f)).normal();
+            vec3 push_direction = normal(camera_pos_on_radius * setv(-1.0f,-1.0f,0.0f));
             f4 push_length = 0.0f;
 
             if (single_press(input.w)) { push_length = 1.0f * 0.075f; }
@@ -168,7 +168,7 @@ int main(int argc, char* argv[])
                 body.velocity = body.velocity + gravity;
 
                 // erase user forces
-                body.user_force = vec3();
+                body.user_force = setv(0.0f);
             };
 
             // move everything
@@ -178,6 +178,9 @@ int main(int argc, char* argv[])
             // Tamanegi.body + Garlic.body
             detect_and_apply_collision_circle_circle(Tamanegi.body, Garlic.body);
 
+            /*
+                https://gafferongames.com/post/physics_in_3d/
+            */
 
             auto calculate_PoC_sphere_plane = [] (RigidBody &Sphere, vec3 plane_normal)
             {
@@ -192,7 +195,7 @@ int main(int argc, char* argv[])
                         https://www.cs.princeton.edu/courses/archive/fall00/cs426/lectures/raycast/sld017.htm
                         https://www.siggraph.org/education/materials/HyperGraph/raytrace/rayplane_intersection.htm
                 */
-                f4 t = ((P.dot(N) + d) * -1.0f) / (V.dot(N));
+                f4 t = ( (dot(P, N) + d) * -1.0f) / dot(V, N);
                 vec3 PoC = P + (V * t);
             };
 
@@ -207,14 +210,14 @@ int main(int argc, char* argv[])
             }
 
             // Garlic.body + container
-            // if (calculate_PoC_circle_in_circle_minkowski_difference (Garlic.body, container))
-            // {
-            //     reflect_circle_within_cirle(Garlic.body, container.pos);
-            // }
-            // else
-            // {
+            if (calculate_PoC_circle_in_circle_minkowski_difference (Garlic.body, container))
+            {
+                reflect_circle_within_cirle(Garlic.body, container.pos);
+            }
+            else
+            {
                 Garlic.body.pos = Garlic.body.pos + Garlic.body.velocity;
-            // }
+            }
 		}
 
         f4 alpha = physics_dt / PHYSICS_MS;
@@ -234,8 +237,8 @@ int main(int argc, char* argv[])
 
 			glm::mat4 projection = glm::perspective(45.0f, 1.0f*sgl.width/sgl.height, 0.1f, 100.0f);
 
-		   	glBindFramebuffer(GL_FRAMEBUFFER,0);
-			glClearColor(0.23f,0.47f,0.58f,1.0f); 
+		   	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+			glClearColor(0.23f, 0.47f, 0.58f, 1.0f); 
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
             auto render = [alpha, view, projection] (Entity &entity)
@@ -243,10 +246,11 @@ int main(int argc, char* argv[])
                 RENDER_STATE state;
                 state.view = view;
                 state.projection = projection;
-                state.world = entity.body.prev_pos.lerp(entity.body.pos, alpha);
-                state.scale = vec3().set(entity.body.radius);
+                state.world = lerp(entity.body.prev_pos, entity.body.pos, alpha);
+                state.scale = setv(entity.body.radius);
                 state.texture = entity.texture;
                 state.rotation = entity.rotation;
+                state.orient = entity.orient;
                 render_mesh(state, library.meshes[entity.mesh]);
             };
 

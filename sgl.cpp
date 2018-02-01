@@ -227,6 +227,26 @@ void assign_mesh (Entity &entity, const char* filename)
     }
 }
 
+u4 get_mesh (const char* filename)
+{
+    b4 found = false;
+    u4 mesh_index = 0;
+    for (u4 i = 0; i < library.mesh_count; i++)
+    {
+        if (library.meshes[i].name == filename)
+        {
+            mesh_index = i;
+            found = true;
+            break;
+        }
+    }
+    if (!found)
+    {
+        cout << "Failed to assign mesh: " << filename << endl;
+    }
+    return mesh_index;
+}
+
 void load_mesh (const char * filename)
 {
     /*

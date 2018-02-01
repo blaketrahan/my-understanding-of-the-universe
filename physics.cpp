@@ -8,7 +8,7 @@ inline vec3 reflect_circle_line ( vec3 circle_velocity, vec3 surface_normal )
     /* Assumes unit circle */
     
     // https://stackoverflow.com/questions/573084/how-to-calculate-bounce-angle
-    f4 scalar_product = circle_velocity.dot(surface_normal);
+    f4 scalar_product = dot(circle_velocity, surface_normal);
 
     vec3 U = surface_normal * scalar_product;
     vec3 W = circle_velocity - U;
@@ -30,13 +30,13 @@ void reflect_circle_circle (RigidBody &A, RigidBody &B)
         Normalized vector N from pos A to pos B
     */
     vec3 N = B.pos - A.pos;
-    N = N.normal();
+    N = normal(N);
     /*
         Find the length of the component of each velocity vector
         along the N (the normal running through the collision point)
     */
-    f4 component_length_A = A.velocity.dot(N);
-    f4 component_length_B = B.velocity.dot(N);
+    f4 component_length_A = dot(A.velocity, N);
+    f4 component_length_B = dot(B.velocity, N);
 
     /*
         Using the optimized version, 
@@ -107,12 +107,12 @@ b4 detect_and_apply_collision_circle_circle (RigidBody &A, RigidBody &B)
     f4 dist = distance_between(B.pos, A.pos);
     f4 r = (B.radius + A.radius);
     dist -= r;
-    if (A_combined_velocity.length() < dist) return false;
+    if (length(A_combined_velocity) < dist) return false;
 
     /*
         @todo: I don't understand why the normal rather than velocity is used.
     */
-    vec3 N = A_combined_velocity.normal();
+    vec3 N = normal(A_combined_velocity);
 
     /*
         vector C: A center to B center
@@ -126,7 +126,7 @@ b4 detect_and_apply_collision_circle_circle (RigidBody &A, RigidBody &B)
         aka, the N is not moving toward C
         D = N . C = |C| * cos(angle between N and C)
     */
-    f4 D = N.dot(C);
+    f4 D = dot(N, C);
     if (D <= 0) { return false; }
 
     /* 
@@ -135,7 +135,7 @@ b4 detect_and_apply_collision_circle_circle (RigidBody &A, RigidBody &B)
         Square these values so not to use squareroot
         Cannot collide if the difference is greater than their radii
     */
-    f4 length_c = C.length();
+    f4 length_c = length(C);
     f4 F = (length_c * length_c) - (D * D);
     f4 rr = r * r;
     if (F >= rr) { return false; }
@@ -164,17 +164,17 @@ b4 detect_and_apply_collision_circle_circle (RigidBody &A, RigidBody &B)
         Finally, the corrected velocity vector must be shorter
         than the original velocity vector.
     */
-    f4 mag = A_combined_velocity.length();
+    f4 mag = length(A_combined_velocity);
     if (mag < distance) { return false; }
 
     /*
         If the two bodies should not reflect, then
         calculate the collision time and apply changes.
 
-        if (A.velocity.has_length() && B.velocity.has_length())
+        if (has_length(A.velocity) && has_length(B.velocity))
         {
             // 2 moving circles
-            f4 collision_time = A_combined_velocity.length() / A.velocity.length();
+            f4 collision_time = length(A_combined_velocity) / length(A.velocity);
             A.velocity = A.velocity * collision_time;
             B.velocity = B.velocity * collision_time;
         }
@@ -200,7 +200,7 @@ f4 calculate_kinetic_energy (RigidBody* bodies, u4 count)
     for (u4 i = 0; i < count; i++)
     {
         // KE = 0.5f * (M * V)^2
-        f4 mv = bodies[i].mass * bodies[i].velocity.length();
+        f4 mv = bodies[i].mass * length(bodies[i].velocity);
         joules += 0.5f * (mv * mv);
     }
     return joules;
@@ -208,7 +208,7 @@ f4 calculate_kinetic_energy (RigidBody* bodies, u4 count)
 
 b4 calculate_PoC_circle_in_circle_minkowski_difference (RigidBody &B, RigidBody &A)
 {
-    if (B.velocity.has_length() == false) return false;
+    if (!has_length(B.velocity)) return false;
     /*
         B is smaller inner circle
         A is larger containing circle
@@ -236,7 +236,7 @@ b4 calculate_PoC_circle_in_circle_minkowski_difference (RigidBody &B, RigidBody 
     
     vec3 AC = C_pos - A.pos;
 
-    if (AC.length() < R - r) {
+    if (length(AC) < R - r) {
         return false;
     }
 
@@ -247,20 +247,20 @@ b4 calculate_PoC_circle_in_circle_minkowski_difference (RigidBody &B, RigidBody 
     vec3 AB = B.pos - A.pos;
     vec3 BC = C_pos - B.pos; 
 
-    f4 BC2 = BC.length();
+    f4 BC2 = length(BC);
     BC2 *= BC2;
 
-    f4 AB2 = AB.length();
+    f4 AB2 = length(AB);
     AB2 *= AB2;
 
     f4 Rr2 = (R - r) * (R - r);
 
-    f4 b = ( AB.dot(BC) / BC2 ) * -1.0f;
+    f4 b = ( dot(AB,BC) / BC2 ) * -1.0f;
     f4 c = (AB2 - Rr2) / BC2;
     f4 d = b * b - c;
-    f4 k = b - sqrt(d);
+    f4 k = b - sqrtf(d);
     if (k < 0)
-        k = b + sqrt(d);
+        k = b + sqrtf(d);
     if (k < 0)
     {
         // cout << "No solution: " << endl;
@@ -268,7 +268,7 @@ b4 calculate_PoC_circle_in_circle_minkowski_difference (RigidBody &B, RigidBody 
     else
     {
         B.PoC = (B.velocity * k);
-        B.PoC_on_radius = B.PoC + (AB.normal() * B.radius);
+        B.PoC_on_radius = B.PoC + (normal(AB) * B.radius);
     }
 
     return true;
@@ -293,14 +293,14 @@ void reflect_circle_within_cirle (RigidBody &A, vec3 container_position)
         N : Normal of surface with length of 1
             at the position of contact
     */
-    vec3 N = vec3(container_position - (A.pos + A.PoC)).normal();
+    vec3 N = normal(container_position - (A.pos + A.PoC));
 
     /*  
         Split velocity into two components:
         U : perpendicular to the surface
         W : parallel with surface
     */
-    vec3 U = N * V.dot(N);
+    vec3 U = N * dot(V,N);
     vec3 W = V - U;
 
     /*
@@ -312,15 +312,15 @@ void reflect_circle_within_cirle (RigidBody &A, vec3 container_position)
         @todo: Clean this up, get rid of all the sqrt()
         Calculate energy lost and new velocity.
     */
-    f4 traveled = A.PoC.length();
-    f4 needs_to_travel = A.velocity.length();
+    f4 traveled = length(A.PoC);
+    f4 needs_to_travel = length(A.velocity);
     f4 remaining = needs_to_travel - traveled;
 
-    f4 energy_remaining = V.length() / needs_to_travel;
+    f4 energy_remaining = length(V) / needs_to_travel;
 
     remaining *= energy_remaining;
 
-    A.pos = A.pos + A.PoC + (V.normal() * remaining);
+    A.pos = A.pos + A.PoC + (normal(V) * remaining);
 
-    A.velocity = V.normal() * (A.velocity.length() * energy_remaining);
+    A.velocity = normal(V) * (length(A.velocity) * energy_remaining);
 }

@@ -211,6 +211,7 @@ b4 create_basic_texture_shader()
 	basic_texture.uniform_model = get_uniform(basic_texture.program, "model");
 	basic_texture.uniform_view = get_uniform(basic_texture.program, "view");
 	basic_texture.uniform_proj = get_uniform(basic_texture.program, "proj");
+    basic_texture.uniform_rotation = get_uniform(basic_texture.program, "rotation");
 
     // fragment uniforms
 	basic_texture.uniform_tex_source = get_uniform(basic_texture.program, "tex_source");
