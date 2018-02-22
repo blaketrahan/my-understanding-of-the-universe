@@ -1,87 +1,87 @@
-
-inline f4 distance_between (vec3 a, vec3 b) {
-    return sqrt(((b.x - a.x) * (b.x - a.x)) + ((b.y - a.y) * (b.y - a.y)) + ((b.z - a.z) * (b.z - a.z)));
-}
-
-inline vec3 reflect_circle_line ( vec3 circle_velocity, vec3 surface_normal )
+void apply_impulses_2D (RigidBody &A, RigidBody &B)
 {
-    /* Assumes unit circle */
+
+    /*
+        source:
+            http://chrishecker.com/images/e/e7/Gdmphys3.pdf
+
+        @todo: understand this better
+    */
+    auto Perp = [] (vec3 v) {
+        vec3 r;
+        r.x = 0.0f;
+        r.y = -v.z;
+        r.z = v.y;
+        return r;
+    };
+    vec3 relative_velocity = A.velocity - B.velocity;
+
+    vec3 N = A.collision_normal;
+
+    f4 impulse_numerator = -(1.0f + A.coefficient_restitution) * dot(relative_velocity, A.collision_normal);
+    f4 impulse_denominator = dot(A.collision_normal,A.collision_normal) * (A.one_over_mass + B.one_over_mass);
     
-    // https://stackoverflow.com/questions/573084/how-to-calculate-bounce-angle
-    f4 scalar_product = dot(circle_velocity, surface_normal);
+    f4 A_perpdot = dot(Perp(A.PoC), relative_velocity);
+    
+    impulse_denominator += A_perpdot * A_perpdot * A.one_over_CM_moment_of_inertia;
+    impulse_denominator += A_perpdot * A_perpdot * B.one_over_CM_moment_of_inertia;
+    
+    f4 J = impulse_numerator / impulse_denominator;
 
-    vec3 U = surface_normal * scalar_product;
-    vec3 W = circle_velocity - U;
+    auto do_impulse = [N, Perp] (f4 J, RigidBody &body)
+    {
+        body.velocity = body.velocity + (N * body.one_over_mass * J);
 
-    return W - U;
+        body.AngularVelocity = body.AngularVelocity + dot(Perp(body.PoC), N * J) * body.one_over_CM_moment_of_inertia;
+    };
+
+    do_impulse( J, A);
+    do_impulse(-J, B);
 }
 
-void reflect_circle_circle (RigidBody &A, RigidBody &B)
+void apply_impulses_3D (RigidBody &A, RigidBody &B)
 {
-    /*
-        2D or 3D
-
-        Collision resolution between:
-            1) Two circles, regardless of motion.
-
-        Source: https://www.gamasutra.com/view/feature/131424/pool_hall_lessons_fast_accurate_.php
-    */
-    /*
-        Normalized vector N from pos A to pos B
-    */
-    vec3 N = B.pos - A.pos;
-    N = normal(N);
-    /*
-        Find the length of the component of each velocity vector
-        along the N (the normal running through the collision point)
-    */
-    f4 component_length_A = dot(A.velocity, N);
-    f4 component_length_B = dot(B.velocity, N);
 
     /*
-        Using the optimized version, 
-        optimizedP =  2(a1 - a2)
-                     ------------
-                     mass1 + mass2
-        P = magnitude of the change in the momentums of the circles before and after
-    */
-    f4 P = (2.0f * (component_length_A - component_length_B)) / (A.mass + B.mass);
+        source:
+            http://chrishecker.com/images/b/bb/Gdmphys4.pdf
+            http://www.euclideanspace.com/maths/algebra/matrix/functions/skew/index.htm
 
-    /*
-        Calculate new velocites 
-    */    
-    vec3 v1_after = A.velocity - (N * (P * B.mass));
-    vec3 v2_after = B.velocity + (N * (P * A.mass));
-
-    /*
-        Apply changes.
+        @todo: understand this better
     */
-    A.velocity = v1_after;
-    B.velocity = v2_after;
+    auto Perp = [] (vec3 v) {
+        vec3 r;
+        r.x = 0.0f;
+        r.y = -v.z;
+        r.z = v.y;
+        return r;
+    };
+    vec3 relative_velocity = A.velocity - B.velocity;
+
+    vec3 N = A.collision_normal;
+
+    f4 impulse_numerator = -(1.0f + A.coefficient_restitution) * dot(relative_velocity, A.collision_normal);
+    f4 impulse_denominator = dot(A.collision_normal,A.collision_normal) * (A.one_over_mass + B.one_over_mass);
+    
+    f4 A_perpdot = dot(Perp(A.PoC), relative_velocity);
+    
+    impulse_denominator += A_perpdot * A_perpdot * A.one_over_CM_moment_of_inertia;
+    impulse_denominator += A_perpdot * A_perpdot * B.one_over_CM_moment_of_inertia;
+    
+    f4 J = impulse_numerator / impulse_denominator;
+
+    auto do_impulse = [N, Perp] (f4 J, RigidBody &body)
+    {
+        body.velocity = body.velocity + (N * body.one_over_mass * J);
+
+        body.AngularVelocity = body.AngularVelocity + dot(Perp(body.PoC), N * J) * body.one_over_CM_moment_of_inertia;
+    };
+
+    do_impulse( J, A);
+    do_impulse(-J, B);
 }
 
-b4 detect_collision_circle_circle_stationary (RigidBody A, RigidBody B)
-{
-    /*
-        2D
-
-        Detect collision only of:
-            1) two stationary circles
-
-        Source: https://www.gamasutra.com/view/feature/131424/pool_hall_lessons_fast_accurate_.php
-    */
-    f8 x = A.pos.x - B.pos.x;
-    x *= x;
-    f8 y = A.pos.y - B.pos.y;
-    y *= y;
-
-    f8 r = A.radius + B.radius; 
-    r *= r;
-
-    return (x + y <= r);
-}
-
-b4 detect_and_apply_collision_circle_circle (RigidBody &A, RigidBody &B)
+b4 collision_circle_circle (RigidBody &A, RigidBody &B)
 {
     /*
         2D or 3D
@@ -89,6 +89,8 @@ b4 detect_and_apply_collision_circle_circle (RigidBody &A, RigidBody &B)
         Detect collision and correct velocities of:
             1) one moving circle against one stationary circle
             2) two moving circles
+
+        Position the circles so that they are touching but not penetrating.
 
         Source: https://www.gamasutra.com/view/feature/131424/pool_hall_lessons_fast_accurate_.php
         
@@ -98,8 +100,16 @@ b4 detect_and_apply_collision_circle_circle (RigidBody &A, RigidBody &B)
 
     /*
         subtract velocity B from A, so that B is treated as stationary
+        @todo: does this work if A is stationary and B is moving?
+
+        @todo: doesn't handle contact without collision well.
+               place two spheres running parallel where sides graze the other.
     */
     vec3 A_combined_velocity = A.velocity - B.velocity;
+
+    f4 length_combined = length(A_combined_velocity);
+
+    if (!length_combined) return false;
 
     /*
         is velocity less than distance between A and B
@@ -107,7 +117,7 @@ b4 detect_and_apply_collision_circle_circle (RigidBody &A, RigidBody &B)
     f4 dist = distance_between(B.pos, A.pos);
     f4 r = (B.radius + A.radius);
     dist -= r;
-    if (length(A_combined_velocity) < dist) return false;
+    if (length_combined < dist) return false;
 
     /*
         @todo: I don't understand why the normal rather than velocity is used.
@@ -149,178 +159,95 @@ b4 detect_and_apply_collision_circle_circle (RigidBody &A, RigidBody &B)
 
     /*
         If there is no such right triangle with sides length of 
-        rr and sqrt(F), T will probably be less than 0.  
+        rr and sqrtf(F), T will probably be less than 0.  
     */
     if (T < 0) { return false; }
 
     /*
         Therefore the distance the circle has to travel along 
-        A_combined_velocity is D - sqrt(T)
-    */
-    f4 distance = D - sqrt(T);
+        A_combined_velocity is D - sqrtf(T)
 
-    /*
-        Get the length of the original velocity vector.
         Finally, the corrected velocity vector must be shorter
         than the original velocity vector.
     */
-    f4 mag = length(A_combined_velocity);
-    if (mag < distance) { return false; }
+    f4 distance = D - sqrtf(T);
+    if (length_combined < distance) { return false; }
 
     /*
-        If the two bodies should not reflect, then
-        calculate the collision time and apply changes.
-
-        if (has_length(A.velocity) && has_length(B.velocity))
-        {
-            // 2 moving circles
-            f4 collision_time = length(A_combined_velocity) / length(A.velocity);
-            A.velocity = A.velocity * collision_time;
-            B.velocity = B.velocity * collision_time;
-        }
-        else {
-            // 1 moving circle 1 stationary circle
-            A.velocity = A_combined_velocity.normal() * distance;
-        }
-        
-        Else, reflect the two bodies.
+        Calculate the position of contact for each sphere
     */
-    reflect_circle_circle(A,B);
+    vec3 fixed_combined_velocity = N * distance;
+    f4 fixed_length = length(fixed_combined_velocity);
 
-    return true;
-}
+    f4 collision_time = fixed_length / length_combined;
 
-f4 calculate_kinetic_energy (RigidBody* bodies, u4 count)
-{
-    /*
-        Calculate kinetic energy in system.
-        Don't forget to remove friction when checking for conservation.
-    */
-    f4 joules = 0.0f;
-    for (u4 i = 0; i < count; i++)
-    {
-        // KE = 0.5f * (M * V)^2
-        f4 mv = bodies[i].mass * length(bodies[i].velocity);
-        joules += 0.5f * (mv * mv);
-    }
-    return joules;
-}
-
-b4 calculate_PoC_circle_in_circle_minkowski_difference (RigidBody &B, RigidBody &A)
-{
-    if (!has_length(B.velocity)) return false;
-    /*
-        B is smaller inner circle
-        A is larger containing circle
-
-        C is B's next position
-
-        This calculates B's point of contact on A along it's velocity vector,
-        but does not alter velocity.
-
-        Sources:
-            Casey Muratori, "Implementing GJK - 2006", 7 min 55 sec
-            https://www.youtube.com/watch?v=Qupqu1xe7Io
-            
-            Sam Hocevar
-            https://gamedev.stackexchange.com/questions/29650/circle-inside-circle-collision
-
-        Additional reading:
-            https://en.wikipedia.org/wiki/Minkowski_addition#Convex_hulls_of_Minkowski_sums
-            https://wildbunny.co.uk/blog/2011/04/20/collision-detection-for-dummies/
-    */
-    f4 R = A.radius;
-    f4 r = B.radius;
-
-    vec3 C_pos = B.pos + B.velocity;
+    A.pos = A.pos + (A.velocity * collision_time);
+    B.pos = B.pos + (B.velocity * collision_time);
     
-    vec3 AC = C_pos - A.pos;
+    A.collision_time = collision_time;
+    B.collision_time = collision_time;
 
-    if (length(AC) < R - r) {
-        return false;
-    }
+    A.remaining_velocity = 1.0f - collision_time;
+    B.remaining_velocity = 1.0f - collision_time;
 
-    /*
-        @todo: Understand this series of equations better.
-    */
+    A.collision_pos = A.pos;
+    B.collision_pos = B.pos;
 
-    vec3 AB = B.pos - A.pos;
-    vec3 BC = C_pos - B.pos; 
+    A.collision_normal = normal(A.pos - B.pos);
+    B.collision_normal = normal(B.pos - A.pos);
 
-    f4 BC2 = length(BC);
-    BC2 *= BC2;
-
-    f4 AB2 = length(AB);
-    AB2 *= AB2;
-
-    f4 Rr2 = (R - r) * (R - r);
-
-    f4 b = ( dot(AB,BC) / BC2 ) * -1.0f;
-    f4 c = (AB2 - Rr2) / BC2;
-    f4 d = b * b - c;
-    f4 k = b - sqrtf(d);
-    if (k < 0)
-        k = b + sqrtf(d);
-    if (k < 0)
-    {
-        // cout << "No solution: " << endl;
-    }
-    else
-    {
-        B.PoC = (B.velocity * k);
-        B.PoC_on_radius = B.PoC + (normal(AB) * B.radius);
-    }
+    A.PoC = A.collision_normal * -A.radius;
+    B.PoC = B.collision_normal * -B.radius;
 
     return true;
 }
 
-void reflect_circle_within_cirle (RigidBody &A, vec3 container_position)
+void reflect_circle_circle (RigidBody &A, RigidBody &B)
 {
+    /*
+        @todo: currently assumes constant velocity over the time of the step.
+               in reality, each body has lost some of its velocity mid-step,
+               unless the collision time is at exactly 0.
+    */
     /*
         2D or 3D
-        Assumes intersection has already been found.
-        Source: Gareth Rees,
-            https://stackoverflow.com/questions/573084/how-to-calculate-bounce-angle
 
-        @todo: How does the container friction and restitution into this
+        Collision resolution between:
+            1) Two circles, regardless of motion.
 
-        @todo: Change this to reflect vector off line.
-            reflect_vector_off_line (&velocity, line.pos, line.normal, friction, restitution)
+        Source: https://www.gamasutra.com/view/feature/131424/pool_hall_lessons_fast_accurate_.php
     */
-    vec3 V = A.velocity;
+    /*
+        Normalized vector N from pos A to pos B
+    */
+    vec3 N = B.pos - A.pos;
+    N = normal(N);
+    /*
+        Find the length of the component of each velocity vector
+        along the N (the normal running through the collision point)
+    */
+    f4 component_length_A = dot(A.velocity, N);
+    f4 component_length_B = dot(B.velocity, N);
 
     /*
-        N : Normal of surface with length of 1
-            at the position of contact
+        @todo: Don't understand this
+        Using the optimized version, 
+        optimizedP =  2(a1 - a2)
+                     ------------
+                     mass1 + mass2
+        P = magnitude of the change in the momentums of the circles before and after
     */
-    vec3 N = normal(container_position - (A.pos + A.PoC));
-
-    /*  
-        Split velocity into two components:
-        U : perpendicular to the surface
-        W : parallel with surface
-    */
-    vec3 U = N * dot(V,N);
-    vec3 W = V - U;
+    f4 P = (2.0f * (component_length_A - component_length_B)) / (A.mass + B.mass);
 
     /*
-        Calcuate the reflected vector with friction and restitution
-    */
-    V = (W * A.friction) - (U * A.restitution);
+        Calculate new velocites 
+    */    
+    vec3 v1_after = A.velocity - (N * (P * B.mass));
+    vec3 v2_after = B.velocity + (N * (P * A.mass));
 
     /*
-        @todo: Clean this up, get rid of all the sqrt()
-        Calculate energy lost and new velocity.
+        Apply changes.
     */
-    f4 traveled = length(A.PoC);
-    f4 needs_to_travel = length(A.velocity);
-    f4 remaining = needs_to_travel - traveled;
-
-    f4 energy_remaining = length(V) / needs_to_travel;
-
-    remaining *= energy_remaining;
-
-    A.pos = A.pos + A.PoC + (normal(V) * remaining);
-
-    A.velocity = normal(V) * (length(A.velocity) * energy_remaining);
+    A.velocity = v1_after * (1.0f - A.collision_time);
+    B.velocity = v2_after * (1.0f - B.collision_time);
 }

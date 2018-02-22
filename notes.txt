@@ -10,3 +10,66 @@ games on top of a model of the universe
 
 
 hopscotch and war (really be careful with this approach)
+
+
+
+Each piece, or part, of the whole of nature is always merely an approximation to the complete truth, or the complete truth so far as we know it. In fact, everything we know is only some kind of approximation, because we know that we do not know all the laws as yet. Therefore, things must be learned only to be unlearned again or, more likely, to be corrected.
+    - feynman lectures
+
+    approximation
+
+
+--- scratch ---
+
+
+/*
+    angular momentum (L) = mass * tangential velocity * radius
+
+    angular velocity = radians per second
+    magnitude of velocity (w) = tangential velocity / radius
+
+    vt = tangential velocity
+*/
+vec3 angular_velocity = setv(0.0f,1.0f,0.0f);
+// vec3 angular_momentum = angular_velocity * body.mass * body.radius;
+
+body.orient = normal(body.orient);
+
+quat q = quat_from_axis(angular_velocity, 30.0f * DEGTORADF);
+
+body.spin = (q * 0.5f) * body.orient;
+
+body.orient = body.spin;
+
+
+/*
+    angularVelocity = angularMomentum * inverseInertia;
+
+    orientation.normalize();
+
+    Ball.body.orient( 0, 
+                  angularVelocity.x, 
+                  angularVelocity.y, 
+                  angularVelocity.z ) 
+
+    spin = 0.5f * q * orientation;
+*/
+
+
+
+auto calculate_PoC_sphere_plane = [] (RigidBody &Sphere, vec3 plane_normal)
+{
+    vec3 P = Sphere.pos;
+    vec3 N = plane_normal;
+    vec3 V = Sphere.velocity;
+    f4 d;
+
+    /*
+        Ray - Plane intersection
+        Source:
+            https://www.cs.princeton.edu/courses/archive/fall00/cs426/lectures/raycast/sld017.htm
+            https://www.siggraph.org/education/materials/HyperGraph/raytrace/rayplane_intersection.htm
+    */
+    f4 t = ( (dot(P, N) + d) * -1.0f) / dot(V, N);
+    vec3 PoC = P + (V * t);
+};

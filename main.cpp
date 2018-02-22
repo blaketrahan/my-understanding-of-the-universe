@@ -1,12 +1,18 @@
+
+/*
+    http://www.feynmanlectures.caltech.edu/I_toc.html
+    http://chrishecker.com/Physics_References
+    http://chrishecker.com/Rigid_Body_Dynamics  
+*/
+
 /*
 	-Blake Trahan
 	-2018
 */
-#include "global_vars.cpp"
+#include "vars.cpp"
 #include "sgl.cpp"
 #include "shaders.cpp"
 #include "render_functions.cpp"
-#include "input.cpp"
 #include "physics.cpp"
 
 int main(int argc, char* argv[])
@@ -14,7 +20,7 @@ int main(int argc, char* argv[])
 	initialize_memory(memory, 8, 2);
 	
 	if (!create_sdl_opengl_window()) 
-    { 
+    {
         cout << "ERROR: failed to create sdl or opengl" << endl;
     }
 
@@ -25,77 +31,83 @@ int main(int argc, char* argv[])
     library.mesh_count = 20;
     library.meshes = (Library::Mesh*)alloc(memory, sizeof(Library::Mesh) * library.mesh_count);
 
-    load_texture("media/circle.png", 256, 256, 4);
-    load_texture("media/rabbit.tga", 1024, 1024, 3);
+    // load_texture("media/circle.png", 256, 256, 4);
+    // load_texture("media/rabbit.tga", 1024, 1024, 3);
     load_texture("media/steel.png", 1024, 1024, 3);
     load_texture("media/aluminum.png", 1024, 1024, 3);
-    load_texture("media/pusher.png", 256, 256, 4);
-    load_texture("media/floor.png", 1024, 1024, 3);
+    // load_texture("media/pusher.png", 256, 256, 4);
+    // load_texture("media/floor.png", 1024, 1024, 3);
+    // load_texture("media/cube2.png", 512, 512, 3);
 
     load_mesh("media/tamanegi.obj");
-    load_mesh("media/rabbit.obj");
-    load_mesh("media/pusher.obj");
+    // load_mesh("media/rabbit.obj");
+    // load_mesh("media/cube2.obj");
+
+    auto init_sphere_body = [] (RigidBody &body, f4 radius, f4 density, f4 restitution, vec3 pos)
+    {
+        body.density = density;
+        body.radius = radius;
+        body.volume = (4.0f/3.0f) * PI * radius * radius * radius; // sphere
+        
+        body.mass = body.density * body.volume;
+
+        body.coefficient_restitution = restitution;
+
+        body.one_over_mass = 1.0f / body.mass;
+
+        const f4 gravity = 0.0f;//0.01f;
+        body.gravity = -gravity / body.one_over_mass;
+
+        // https://en.wikipedia.org/wiki/List_of_moments_of_inertia
+        // solid sphere
+        f4 moment_of_inertia = (2.0f/5.0f) * body.mass * radius * radius;
+        body.one_over_CM_moment_of_inertia = 1.0f / moment_of_inertia;
+
+        body.inverse_inertia_tensor = identity();
+        body.inverse_inertia_tensor = body.inverse_inertia_tensor * (moment_of_inertia);
+        body.inverse_inertia_tensor = inverse(body.inverse_inertia_tensor);
+
+        body.orientation = from_axis_angle(setv(1.0f,0.0f,0.0f), degtorad(0.0f));
+        body.AngularVelocity = 0.0f;
+        body.torque = 0.0f;
+        body.velocity = setv(0.0f, 0.0f, 0.0f);
+        body.CMForce = setv(0.0f,0.0f,0.0f);
+        body.pos = pos;
+
+        body.prev_pos = pos;
+    };
 
     /*
         Entities
     */
-    Entity Tamanegi;
-    Tamanegi.mesh = get_mesh("media/tamanegi.obj");
-    Tamanegi.texture = get_texture("media/steel.png");
-    Tamanegi.body.radius = 0.1f;
-    Tamanegi.body.pos = setv(0.0f,0.0f,-0.5f);
-    Tamanegi.body.prev_pos = Tamanegi.body.pos;
-    Tamanegi.scale = setv(Tamanegi.body.radius);
 
-    Entity Pusher;
-    Pusher.mesh = get_mesh("media/pusher.obj");
-    Pusher.texture = get_texture("media/pusher.png");
-    Pusher.body.radius = 0.1f;
-    Pusher.scale = setv(Pusher.body.radius);
+    Entity Ball;
+    Ball.mesh = get_mesh("media/tamanegi.obj");
+    Ball.texture = get_texture("media/steel.png");
+    init_sphere_body(Ball.body, 1.0f, 0.01f, 1.0f, setv(0.0f,0.0f,0.0f));
 
     Entity Garlic;
     Garlic.mesh = get_mesh("media/tamanegi.obj");
     Garlic.texture = get_texture("media/aluminum.png");
-    Garlic.body.radius = 0.1f;
-    Garlic.body.mass = 5.5f;
-    Garlic.body.pos = setv(0.5f,0.0f,-0.5f);
-    Garlic.body.prev_pos = Garlic.body.pos;
-    Garlic.scale = setv(Garlic.body.radius);
+    init_sphere_body(Garlic.body, 1.0f, 0.01f, 1.0f, setv(0.0f,-10.0f,0.0f));
+    Garlic.body.velocity = setv(0.0f,0.0f,0.0f);
 
-    Entity Rabbit;
-    Rabbit.mesh = get_mesh("media/rabbit.obj");
-    Rabbit.texture = get_texture("media/rabbit.tga");
-    Rabbit.body.radius = 1.0f;
-    Rabbit.body.pos.y = 1.5f;
-    Rabbit.body.prev_pos = Rabbit.body.pos;
-    Rabbit.scale = setv(Rabbit.body.radius);
-    Rabbit.orient = quat_axis_z(-90.0f) * quat_axis_y(-90.0f);
-
-    Entity Floor;
-    Floor.body.radius = 1.0f;
-    Floor.body.pos = setv(0.0f,0.0f,-0.75f);
-    Floor.body.prev_pos = Floor.body.pos;
-    Floor.texture = get_texture("media/floor.png");
-    Floor.scale = setv(Floor.body.radius);
-
-    RigidBody container;
-    container.radius = 1.0f;
-    container.pos = setv(0.0f,0.0f,-1.0f);
-    container.prev_pos = container.pos;
-    GLuint container_texture = get_texture("media/circle.png");
+    // Ball.body.AngularVelocity = 10.0f;
+    // Garlic.body.AngularVelocity = 10.0f;
 
 	// loop
-	const f4 RENDER_MS = 1.0f/60.0f;
+	const f4 RENDER_MS = 1.0f/120.0f;
 	const f4 PHYSICS_MS = 1.0f/60.0f;
 	f4 render_dt = 0.0f;
 	f4 physics_dt = 0.0f;
 	u4 time_physics_prev = SDL_GetTicks();
 	f4 camera_angle = 0.0f;
-	f4 cam_radius = 3.0f;
-	vec3 camera_pos;
+	f4 cam_radius = 20.0f;
+	vec3 prev_camera_pos;
+    vec3 camera_pos;
     vec3 camera_pos_on_radius;
 
-	while(!input.quit_app)
+	while(!key.quit_app)
 	{
 		u4 time_physics_curr = SDL_GetTicks();
 		f4 frame_time = ((f4)(time_physics_curr - time_physics_prev)) / 1000.0f;
@@ -117,107 +129,86 @@ int main(int argc, char* argv[])
             /*
                 Camera
             */
-            if (input.right) {
-                camera_angle -= M_PI32 * 0.01f;
-                camera_angle = camera_angle < 0.0f ? camera_angle = M_PI32 * 2.0f + camera_angle : camera_angle;
+            if (key.right) {
+                camera_angle -= PI * 0.01f;
+                camera_angle = camera_angle < 0.0f ? camera_angle = PI * 2.0f + camera_angle : camera_angle;
             }
-            if (input.left) {
-                camera_angle += M_PI32 * 0.01f;
-                camera_angle = camera_angle >  M_PI32 * 2.0f ? camera_angle - (M_PI32 * 2.0f) : camera_angle;
+            if (key.left) {
+                camera_angle += PI * 0.01f;
+                camera_angle = camera_angle >  PI * 2.0f ? camera_angle - (PI * 2.0f) : camera_angle;
             }
-            if (input.up) { 
-                cam_radius -= M_PI32 * 0.01f;
+            if (key.up) { 
+                cam_radius -= PI * 0.5f;
             }
-            if (input.down) {
-                cam_radius += M_PI32 * 0.01f;
+            if (key.down) {
+                cam_radius += PI * 0.5f;
             }
 
-            camera_pos = weighted_average(camera_pos, Rabbit.body.pos, 20.0f);
+            prev_camera_pos = camera_pos;
+            camera_pos = weighted_average(camera_pos, camera_pos, 20.0f);
 
             f4 cPosX = cam_radius * cos(camera_angle);
             f4 cPosY = cam_radius * sin(camera_angle);
-            camera_pos_on_radius = setv(-cPosX, -cPosY, cam_radius);
+            camera_pos_on_radius = setv(-cPosX, -cPosY, 0.0f);
             
             /*
                 Physics
             */
-            // apply friction
-            const f4 ground_friction = 0.985f;
 
-            const vec3 gravity = setv(0.0f,0.0f,-0.0025f);
+            /* user input */
+            const f4 push = 0.025f;
+            if (single_press(key.a)) Garlic.body.CMForce.y += push;
+            if (single_press(key.w)) Garlic.body.CMForce.z += push;
+            if (single_press(key.s)) Garlic.body.CMForce.z -= push;
+            if (single_press(key.d)) Garlic.body.CMForce.y -= push;
+            if (single_press(key.j)) Ball.body.CMForce.y += push;
+            if (single_press(key.i)) Ball.body.CMForce.z += push;
+            if (single_press(key.k)) Ball.body.CMForce.z -= push;
+            if (single_press(key.l)) Ball.body.CMForce.y -= push;
 
-            // user input
-            vec3 push_direction = normal(camera_pos_on_radius * setv(-1.0f,-1.0f,0.0f));
-            f4 push_length = 0.0f;
-
-            if (single_press(input.w)) { push_length = 1.0f * 0.075f; }
-
-            Tamanegi.body.user_force = Tamanegi.body.user_force + (push_direction * push_length);
-
-            auto step = [ground_friction, gravity] (RigidBody &body) {
-                // store last position
+            auto step = [] (RigidBody &body)
+            {
                 body.prev_pos = body.pos;
+                body.collision_time = 0.0f;
+                body.remaining_velocity = 1.0f;
+                body.collision_pos = body.pos;
 
-                // calculate velocity
-                body.velocity = body.velocity + body.user_force;
+                // add forces
+                // body.CMForce = body.CMForce + forces
+                body.CMForce.z = body.CMForce.z + body.gravity;
 
-                // apply friction
-                body.velocity = body.velocity * ground_friction;
+                // calculate new velocities
+                body.velocity = body.velocity + (body.one_over_mass * body.CMForce);
 
-                // add gravity
-                body.velocity = body.velocity + gravity;
+                body.AngularVelocity = body.AngularVelocity + body.one_over_CM_moment_of_inertia * body.torque;
 
-                // erase user forces
-                body.user_force = setv(0.0f);
+                body.velocity = body.velocity * 0.85f; /* @todo: remove this */
+                body.AngularVelocity = body.AngularVelocity;
+                
+                // clear forces
+                body.torque = 0.0f;
+                body.CMForce = setv(0.0f,0.0f,0.0f);
             };
 
             // move everything
-            step(Tamanegi.body);
+            step(Ball.body);
             step(Garlic.body);
 
-            // Tamanegi.body + Garlic.body
-            detect_and_apply_collision_circle_circle(Tamanegi.body, Garlic.body);
-
-            /*
-                https://gafferongames.com/post/physics_in_3d/
-            */
-
-            auto calculate_PoC_sphere_plane = [] (RigidBody &Sphere, vec3 plane_normal)
+            // Ball.body + Garlic.body
+            if (collision_circle_circle(Ball.body, Garlic.body))
             {
-                vec3 P = Sphere.pos;
-                vec3 N = plane_normal;
-                vec3 V = Sphere.velocity;
-                f4 d;
+                // apply_impulses_3D(Ball.body, Garlic.body);
+                apply_impulses_3D(Ball.body, Garlic.body);
+            }
 
-                /*
-                    Ray - Plane intersection
-                    Source:
-                        https://www.cs.princeton.edu/courses/archive/fall00/cs426/lectures/raycast/sld017.htm
-                        https://www.siggraph.org/education/materials/HyperGraph/raytrace/rayplane_intersection.htm
-                */
-                f4 t = ( (dot(P, N) + d) * -1.0f) / dot(V, N);
-                vec3 PoC = P + (V * t);
+            auto apply = [] (RigidBody &body)
+            {
+                body.pos = body.pos + body.velocity * body.remaining_velocity;
+                // body.Orientation = body.Orientation + body.AngularVelocity;
             };
 
-            // Tamanegi.body + container
-            if (calculate_PoC_circle_in_circle_minkowski_difference (Tamanegi.body, container))
-            {
-                reflect_circle_within_cirle(Tamanegi.body, container.pos);
-            }
-            else
-            {
-                Tamanegi.body.pos = Tamanegi.body.pos + Tamanegi.body.velocity;
-            }
-
-            // Garlic.body + container
-            if (calculate_PoC_circle_in_circle_minkowski_difference (Garlic.body, container))
-            {
-                reflect_circle_within_cirle(Garlic.body, container.pos);
-            }
-            else
-            {
-                Garlic.body.pos = Garlic.body.pos + Garlic.body.velocity;
-            }
+            apply(Ball.body);
+            apply(Garlic.body);
 		}
 
         f4 alpha = physics_dt / PHYSICS_MS;
@@ -227,11 +218,9 @@ int main(int argc, char* argv[])
 		{
 			render_dt = 0;
 
-            // @todo: lerp camera position
-
-            // X+ left, Y+ left, Z+ up
+            // X+ forward, Y+ left, Z+ up
 			glm::mat4 view = glm::lookAt(
-				glmv(camera_pos + camera_pos_on_radius),
+				glmv(lerp(prev_camera_pos,camera_pos,alpha) + camera_pos_on_radius),
 				glmv(camera_pos),
 				glm::vec3(0.0f, 0.0f, 1.0f));
 
@@ -246,18 +235,28 @@ int main(int argc, char* argv[])
                 RENDER_STATE state;
                 state.view = view;
                 state.projection = projection;
-                state.world = lerp(entity.body.prev_pos, entity.body.pos, alpha);
+                if (entity.body.collision_time != 0.0f)
+                {
+                    if (alpha <= entity.body.collision_time)
+                    {
+                        state.world = lerp(entity.body.prev_pos, entity.body.collision_pos, (alpha/entity.body.collision_time));
+                    }
+                    else {
+                        state.world = lerp(entity.body.collision_pos, entity.body.pos, (alpha - entity.body.collision_time) / (1.0f - entity.body.collision_time));
+                    }
+                }
+                else
+                {
+                    state.world = lerp(entity.body.prev_pos, entity.body.pos, alpha);
+                }
                 state.scale = setv(entity.body.radius);
                 state.texture = entity.texture;
-                state.rotation = entity.rotation;
-                state.orient = entity.orient;
+                state.orient = entity.body.orientation;
                 render_mesh(state, library.meshes[entity.mesh]);
             };
 
-            render(Tamanegi);
+            render(Ball);
             render(Garlic);
-            render(Pusher);
-            render(Rabbit);
 
 			SDL_GL_SwapWindow(sgl.window);
 		}
@@ -293,4 +292,36 @@ int main(int argc, char* argv[])
 	free(memory.PermanentStorage);
 
 	return 0;
+}
+
+inline void poll_events()
+{
+    SDL_Event e;        
+    while( SDL_PollEvent( &e ) != 0 )
+    {
+        if (e.type == SDL_KEYDOWN || e.type == SDL_KEYUP)
+        {
+            b4 val = e.type == SDL_KEYDOWN ? true : false;
+            switch( e.key.keysym.sym )
+            { 
+                case SDLK_w:        key.w.pressed = val; break;
+                case SDLK_a:        key.a.pressed = val; break;
+                case SDLK_s:        key.s.pressed = val; break;
+                case SDLK_d:        key.d.pressed = val; break;
+                case SDLK_i:        key.i.pressed = val; break;
+                case SDLK_j:        key.j.pressed = val; break;
+                case SDLK_k:        key.k.pressed = val; break;
+                case SDLK_l:        key.l.pressed = val; break;
+                case SDLK_RIGHT:    key.right = val; break;
+                case SDLK_LEFT:     key.left = val; break;
+                case SDLK_UP:       key.up = val; break;
+                case SDLK_DOWN:     key.down = val; break;
+                case SDLK_ESCAPE:   key.quit_app = val; break;
+            }
+        }
+        else if ( e.type == SDL_QUIT )
+        {
+            key.quit_app = true;
+        }
+    }
 }

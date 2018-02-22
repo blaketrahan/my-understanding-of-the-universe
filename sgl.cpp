@@ -171,23 +171,23 @@ void load_texture (const char *filename, u4 w, u4 h, u4 components)
     library.texture_count++;
 }
 
-void assign_texture (Entity &entity, const char* filename)
-{
-    b4 found = false;
-    for (u4 i = 0; i < library.texture_count; i++)
-    {
-        if (library.textures[i].name == filename)
-        {
-            entity.texture = library.textures[i].id;
-            found = true;
-            break;
-        }
-    }
-    if (!found)
-    {
-        cout << "Failed to assign texture: " << filename << endl;
-    }
-}
+// void assign_texture (Entity &entity, const char* filename)
+// {
+//     b4 found = false;
+//     for (u4 i = 0; i < library.texture_count; i++)
+//     {
+//         if (library.textures[i].name == filename)
+//         {
+//             entity.texture = library.textures[i].id;
+//             found = true;
+//             break;
+//         }
+//     }
+//     if (!found)
+//     {
+//         cout << "Failed to assign texture: " << filename << endl;
+//     }
+// }
 
 GLuint get_texture (const char* filename)
 {
@@ -209,23 +209,23 @@ GLuint get_texture (const char* filename)
     return texture_id;
 }
 
-void assign_mesh (Entity &entity, const char* filename)
-{
-    b4 found = false;
-    for (u4 i = 0; i < library.mesh_count; i++)
-    {
-        if (library.meshes[i].name == filename)
-        {
-            entity.mesh = i;
-            found = true;
-            break;
-        }
-    }
-    if (!found)
-    {
-        cout << "Failed to assign mesh: " << filename << endl;
-    }
-}
+// void assign_mesh (Entity &entity, const char* filename)
+// {
+//     b4 found = false;
+//     for (u4 i = 0; i < library.mesh_count; i++)
+//     {
+//         if (library.meshes[i].name == filename)
+//         {
+//             entity.mesh = i;
+//             found = true;
+//             break;
+//         }
+//     }
+//     if (!found)
+//     {
+//         cout << "Failed to assign mesh: " << filename << endl;
+//     }
+// }
 
 u4 get_mesh (const char* filename)
 {

@@ -6,9 +6,6 @@
 // vector: eventually remove this
 // only using it for shader creation
 #include <vector> // shader creation
-#include <algorithm> // file saving
-#include <fstream> // file saving
-#include <cstdlib> // i dont know
 
 #include <stdio.h> // objloader.cpp
 #include <string> // objloader.cpp
@@ -66,11 +63,10 @@ struct SGL
 struct RENDER_STATE {
 	glm::mat4 view;
 	glm::mat4 projection;
-	vec3 rotation;
 	vec3 world;
 	vec3 scale;
 	GLuint texture;
-    quat orient;
+    mat3x3 orient;
 };
 
 struct IMAGE {
@@ -105,31 +101,67 @@ struct Library
 
 struct RigidBody 
 {
-    vec3 velocity;  /* LOCAL */
-    vec3 pos;       /* GLOBAL */
-    vec3 prev_pos;  /* GLOBAL */
+    // constants ---
+    f4 radius;
+    f4 density;
+    f4 volume;
+    f4 mass;
 
-    f4 radius = 0.1f;
-    f4 mass = 10.0f;
-    f4 restitution = 0.75f;
-    f4 friction = 0.75f;
+    f4 gravity;
+    f4 one_over_mass;
+    f4 one_over_CM_moment_of_inertia;
+    f4 coefficient_restitution;
 
-    vec3 user_force;    /* LOCAL */
+    mat3x3 inverse_inertia_tensor;
 
-    /* Collision information */
-    vec3 PoC;           /* LOCAL */
-    vec3 PoC_on_radius; /* LOCAL */
+    // dynamics ---
+    vec3 pos;
+    mat3x3 orientation;
+
+    vec3 velocity;
+    f4 AngularVelocity;
+
+    vec3 CMForce;
+    f4 torque;
+
+    // previous ---
+    vec3 prev_pos;
+
+    // collision information --
+    f4 collision_time;
+    f4 remaining_velocity;
+    vec3 collision_pos;
+    vec3 collision_normal;
+    vec3 PoC;
 };
 
 struct Entity 
 {
     /* Physics */
     RigidBody body;
-    quat orient;
 
     /* Rendering */
     u4 mesh;
     GLuint texture;
     vec3 scale;
-    vec3 rotation;
 };
+
+// input
+struct SinglePress
+{
+    b4 pressed = false;
+    b4 released = true;
+};
+inline b4 single_press(SinglePress &key)
+{
+    u4 state = key.released & key.pressed;
+    key.released = !state & !key.pressed; 
+    return state;
+}
+inline void poll_events();
+struct Keys {
+    b4 left, right, up, down;
+    SinglePress w,a,s,d;
+    SinglePress i,j,k,l;
+    b4 quit_app;
+} key;
