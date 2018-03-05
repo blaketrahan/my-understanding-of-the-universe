@@ -53,6 +53,24 @@ inline mat3x3 identity ()
     r[6] = 0.0f; r[7] = 0.0f; r[8] = 1.0f;
     return r;
 }
+inline mat3x3 operator + (mat3x3 a, mat3x3 b)
+{
+    mat3x3 r;
+
+    r[0] = a[0] + b[0];
+    r[1] = a[1] + b[1];
+    r[2] = a[2] + b[2];
+
+    r[3] = a[3] + b[3];
+    r[4] = a[4] + b[4];
+    r[5] = a[5] + b[5];
+
+    r[6] = a[6] + b[6];
+    r[7] = a[7] + b[7];
+    r[8] = a[8] + b[8];
+
+    return r;
+}
 inline mat3x3 operator * (mat3x3 a, mat3x3 b)
 {
     mat3x3 r;
@@ -68,6 +86,17 @@ inline mat3x3 operator * (mat3x3 a, mat3x3 b)
     r[6] = a[6] * b[0] + a[7] * b[3] + a[8] * b[6];
     r[7] = a[6] * b[1] + a[7] * b[4] + a[8] * b[7];
     r[8] = a[6] * b[2] + a[7] * b[5] + a[8] * b[8];
+
+    return r;
+}
+
+inline vec3 operator * (vec3 v, mat3x3 m)
+{
+    vec3 r;
+
+    r.x = v.x * m[0] + v.y * m[3] + v.z * m[6];
+    r.y = v.x * m[1] + v.y * m[4] + v.z * m[7];
+    r.z = v.x * m[2] + v.y * m[5] + v.z * m[8];
 
     return r;
 }
@@ -177,14 +206,18 @@ mat3x3 from_axis_angle (vec3 axis, f4 angle)
 
     return r;
 }
-inline vec3 skew_symmetric (mat3x3 m, vec3 v)
+inline mat3x3 skew_symmetric (vec3 v)
 {
     // tilde operator
-    vec3 r;
+    mat3x3 r;
 
-    r.x = v.x * m[0] + v.y * m[3] + v.z * m[6];
-    r.y = v.x * m[1] + v.y * m[4] + v.z * m[7];
-    r.z = v.x * m[2] + v.y * m[5] + v.z * m[8];
+    f4 w1 = v.x;
+    f4 w2 = v.y;
+    f4 w3 = v.z;
+
+    r[0] = 0.f; r[1] = -w3; r[2] =  w2;
+    r[3] =  w3; r[4] = 0.f; r[5] = -w1;
+    r[6] = -w2; r[7] =  w1; r[8] = 0.f;
 
     return r;
 }
@@ -281,7 +314,7 @@ inline f4 has_length (vec3 v)
 {
     return length_squared(v);
 }
-inline vec3 setv (f4 scalar)
+inline vec3 setv (f4 scalar = 0.0f)
 {
     vec3 r;
     r.x = scalar;
@@ -462,6 +495,27 @@ quat quat_axis_y (f4 angle)
     r.y = 1.0f * sinf(angle / 2.0f);
     r.z = 0.0f;
 
+    return r;
+}
+mat3x3 orthonormalize (mat3x3 m)
+{
+    vec3 X, Y, Z;
+
+    X.x = m[0];
+    X.y = m[3];
+    X.z = m[6];
+    Y.x = m[1];
+    Y.y = m[4];
+    Y.z = m[7];
+
+    X = normal(X);
+    Z = normal(crossproduct(X, Y));
+    Y = normal(crossproduct(Z, X));
+
+    mat3x3 r;
+    r[0] = X.x; r[1] = Y.x; r[2] = Z.x;
+    r[3] = X.y; r[4] = Y.y; r[5] = Z.y;
+    r[6] = X.z; r[7] = Y.z; r[8] = Z.z;
     return r;
 }
 #endif

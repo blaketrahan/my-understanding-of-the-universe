@@ -35,45 +35,45 @@ using namespace std;
 
 struct PRIMITIVE
 {
-	GLuint verts;
-	GLuint colors;
-	GLuint indices;
-	GLuint uv_coords;
+    GLuint verts;
+    GLuint colors;
+    GLuint indices;
+    GLuint uv_coords;
 } plane;
 
 struct BASIC_TEXTURE_SHADER {
-	GLuint program;
-	GLint uniform_model;
-	GLint uniform_view;
-	GLint uniform_proj;
-	GLint uniform_scale;
+    GLuint program;
+    GLint uniform_model;
+    GLint uniform_view;
+    GLint uniform_proj;
+    GLint uniform_scale;
     GLint uniform_rotation;
-	GLint uniform_tex_source;
-	GLint attribute_coord3d;
-	GLint attribute_tex_coord2d;
+    GLint uniform_tex_source;
+    GLint attribute_coord3d;
+    GLint attribute_tex_coord2d;
 } basic_texture;
 
 struct SGL
 {
-	SDL_Window* window;
-	s4 width;
-	s4 height;
+    SDL_Window* window;
+    s4 width;
+    s4 height;
 } sgl;
 
 struct RENDER_STATE {
-	glm::mat4 view;
-	glm::mat4 projection;
-	vec3 world;
-	vec3 scale;
-	GLuint texture;
+    glm::mat4 view;
+    glm::mat4 projection;
+    vec3 world;
+    vec3 scale;
+    GLuint texture;
     mat3x3 orient;
 };
 
 struct IMAGE {
-	unsigned char* data;
-	int x;
-	int y;
-	int n;
+    unsigned char* data;
+    int x;
+    int y;
+    int n;
 };
 
 struct Library 
@@ -101,33 +101,30 @@ struct Library
 
 struct RigidBody 
 {
-    // constants ---
     f4 radius;
     f4 density;
     f4 volume;
     f4 mass;
-
     f4 gravity;
     f4 one_over_mass;
-    f4 one_over_CM_moment_of_inertia;
     f4 coefficient_restitution;
 
-    mat3x3 inverse_inertia_tensor;
+    f4 moment_of_inertia;
+    mat3x3 MoI_local;
+    mat3x3 inverse_MoI_local;
+    mat3x3 inverse_MoI_world;
 
-    // dynamics ---
-    vec3 pos;
-    mat3x3 orientation;
-
-    vec3 velocity;
-    f4 AngularVelocity;
-
-    vec3 CMForce;
-    f4 torque;
-
-    // previous ---
     vec3 prev_pos;
+    vec3 pos;
+    vec3 future_pos;
+    mat3x3 orientation;
+    vec3 angular_momentum;
+    vec3 velocity;
+    vec3 angular_velocity;
 
-    // collision information --
+    vec3 force;
+    vec3 torque;
+
     f4 collision_time;
     f4 remaining_velocity;
     vec3 collision_pos;

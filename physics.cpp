@@ -7,48 +7,7 @@ void apply_impulses_2D (RigidBody &A, RigidBody &B)
 
         @todo: understand this better
     */
-    auto Perp = [] (vec3 v) {
-        vec3 r;
-        r.x = 0.0f;
-        r.y = -v.z;
-        r.z = v.y;
-        return r;
-    };
-    vec3 relative_velocity = A.velocity - B.velocity;
-
-    vec3 N = A.collision_normal;
-
-    f4 impulse_numerator = -(1.0f + A.coefficient_restitution) * dot(relative_velocity, A.collision_normal);
-    f4 impulse_denominator = dot(A.collision_normal,A.collision_normal) * (A.one_over_mass + B.one_over_mass);
-    
-    f4 A_perpdot = dot(Perp(A.PoC), relative_velocity);
-    
-    impulse_denominator += A_perpdot * A_perpdot * A.one_over_CM_moment_of_inertia;
-    impulse_denominator += A_perpdot * A_perpdot * B.one_over_CM_moment_of_inertia;
-    
-    f4 J = impulse_numerator / impulse_denominator;
-
-    auto do_impulse = [N, Perp] (f4 J, RigidBody &body)
-    {
-        body.velocity = body.velocity + (N * body.one_over_mass * J);
-
-        body.AngularVelocity = body.AngularVelocity + dot(Perp(body.PoC), N * J) * body.one_over_CM_moment_of_inertia;
-    };
-
-    do_impulse( J, A);
-    do_impulse(-J, B);
-}
-
-void apply_impulses_3D (RigidBody &A, RigidBody &B)
-{
-
     /*
-        source:
-            http://chrishecker.com/images/b/bb/Gdmphys4.pdf
-            http://www.euclideanspace.com/maths/algebra/matrix/functions/skew/index.htm
-
-        @todo: understand this better
-    */
     auto Perp = [] (vec3 v) {
         vec3 r;
         r.x = 0.0f;
@@ -79,6 +38,7 @@ void apply_impulses_3D (RigidBody &A, RigidBody &B)
 
     do_impulse( J, A);
     do_impulse(-J, B);
+    */
 }
 
 b4 collision_circle_circle (RigidBody &A, RigidBody &B)
@@ -181,8 +141,11 @@ b4 collision_circle_circle (RigidBody &A, RigidBody &B)
 
     f4 collision_time = fixed_length / length_combined;
 
-    A.pos = A.pos + (A.velocity * collision_time);
-    B.pos = B.pos + (B.velocity * collision_time);
+    A.future_pos = A.prev_pos;
+    B.future_pos = B.prev_pos;
+
+    A.future_pos = A.future_pos + (A.velocity * collision_time);
+    B.future_pos = B.future_pos + (B.velocity * collision_time);
     
     A.collision_time = collision_time;
     B.collision_time = collision_time;
@@ -190,11 +153,11 @@ b4 collision_circle_circle (RigidBody &A, RigidBody &B)
     A.remaining_velocity = 1.0f - collision_time;
     B.remaining_velocity = 1.0f - collision_time;
 
-    A.collision_pos = A.pos;
-    B.collision_pos = B.pos;
+    A.collision_pos = A.future_pos;
+    B.collision_pos = B.future_pos;
 
-    A.collision_normal = normal(A.pos - B.pos);
-    B.collision_normal = normal(B.pos - A.pos);
+    A.collision_normal = normal(A.future_pos - B.future_pos);
+    B.collision_normal = normal(B.future_pos - A.future_pos);
 
     A.PoC = A.collision_normal * -A.radius;
     B.PoC = B.collision_normal * -B.radius;

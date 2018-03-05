@@ -1,4 +1,3 @@
-
 /*
     http://www.feynmanlectures.caltech.edu/I_toc.html
     http://chrishecker.com/Physics_References
@@ -6,8 +5,8 @@
 */
 
 /*
-	-Blake Trahan
-	-2018
+    -Blake Trahan
+    -2018
 */
 #include "vars.cpp"
 #include "sgl.cpp"
@@ -17,101 +16,97 @@
 
 int main(int argc, char* argv[])
 {
-	initialize_memory(memory, 8, 2);
-	
-	if (!create_sdl_opengl_window()) 
+    initialize_memory(memory, 8, 2);
+    
+    if (!create_sdl_opengl_window()) 
     {
         cout << "ERROR: failed to create sdl or opengl" << endl;
     }
 
     if (!create_basic_texture_shader()) return 0;
 
-    library.texture_count = 20;
+    library.texture_count = 2;
     library.textures = (Library::Texture*)alloc(memory, sizeof(Library::Texture) * library.texture_count);
-    library.mesh_count = 20;
+    library.mesh_count = 1;
     library.meshes = (Library::Mesh*)alloc(memory, sizeof(Library::Mesh) * library.mesh_count);
 
-    // load_texture("media/circle.png", 256, 256, 4);
-    // load_texture("media/rabbit.tga", 1024, 1024, 3);
     load_texture("media/steel.png", 1024, 1024, 3);
     load_texture("media/aluminum.png", 1024, 1024, 3);
-    // load_texture("media/pusher.png", 256, 256, 4);
-    // load_texture("media/floor.png", 1024, 1024, 3);
-    // load_texture("media/cube2.png", 512, 512, 3);
-
     load_mesh("media/tamanegi.obj");
-    // load_mesh("media/rabbit.obj");
-    // load_mesh("media/cube2.obj");
 
-    auto init_sphere_body = [] (RigidBody &body, f4 radius, f4 density, f4 restitution, vec3 pos)
+    struct BodyInfo {
+        f4 restitution = 1.0f;
+        f4 radius = 1.2f;
+        f4 density = 0.01f;
+        vec3 pos;
+    };
+
+    auto init_sphere_body = [] (RigidBody &body, BodyInfo info)
     {
-        body.density = density;
-        body.radius = radius;
-        body.volume = (4.0f/3.0f) * PI * radius * radius * radius; // sphere
-        
+        body.density = info.density;
+        body.radius = info.radius;
+        body.volume = (4.0f/3.0f) * PI * info.radius * info.radius * info.radius; // sphere
         body.mass = body.density * body.volume;
 
-        body.coefficient_restitution = restitution;
+        body.coefficient_restitution = info.restitution;
 
         body.one_over_mass = 1.0f / body.mass;
 
         const f4 gravity = 0.0f;//0.01f;
         body.gravity = -gravity / body.one_over_mass;
 
+        body.force = setv();
+        body.torque = setv();
+
         // https://en.wikipedia.org/wiki/List_of_moments_of_inertia
         // solid sphere
-        f4 moment_of_inertia = (2.0f/5.0f) * body.mass * radius * radius;
-        body.one_over_CM_moment_of_inertia = 1.0f / moment_of_inertia;
+        body.moment_of_inertia = (2.0f/5.0f) * body.mass * info.radius * info.radius;
+        body.MoI_local = identity() * body.moment_of_inertia;
+        body.inverse_MoI_local = inverse(body.MoI_local); // |I^-1 CM
 
-        body.inverse_inertia_tensor = identity();
-        body.inverse_inertia_tensor = body.inverse_inertia_tensor * (moment_of_inertia);
-        body.inverse_inertia_tensor = inverse(body.inverse_inertia_tensor);
-
-        body.orientation = from_axis_angle(setv(1.0f,0.0f,0.0f), degtorad(0.0f));
-        body.AngularVelocity = 0.0f;
-        body.torque = 0.0f;
-        body.velocity = setv(0.0f, 0.0f, 0.0f);
-        body.CMForce = setv(0.0f,0.0f,0.0f);
-        body.pos = pos;
-
-        body.prev_pos = pos;
+        body.pos = info.pos; // r CM
+        body.prev_pos = info.pos; 
+        body.velocity = setv(); // v CM
+        body.angular_velocity = setv();
+        body.orientation = from_axis_angle(setv(1.0f,0.0f,0.0f), degtorad(0.0f)); // A
+        body.angular_momentum = setv(); // L CM
+    
+        body.inverse_MoI_world = body.orientation * body.inverse_MoI_local * transpose(body.orientation); // I^-1 CM
     };
 
     /*
         Entities
     */
+    BodyInfo info;
 
     Entity Ball;
     Ball.mesh = get_mesh("media/tamanegi.obj");
     Ball.texture = get_texture("media/steel.png");
-    init_sphere_body(Ball.body, 1.0f, 0.01f, 1.0f, setv(0.0f,0.0f,0.0f));
+    init_sphere_body(Ball.body, info);
 
     Entity Garlic;
     Garlic.mesh = get_mesh("media/tamanegi.obj");
     Garlic.texture = get_texture("media/aluminum.png");
-    init_sphere_body(Garlic.body, 1.0f, 0.01f, 1.0f, setv(0.0f,-10.0f,0.0f));
-    Garlic.body.velocity = setv(0.0f,0.0f,0.0f);
+    info.pos.y = -10.0f;
+    init_sphere_body(Garlic.body, info);
 
-    // Ball.body.AngularVelocity = 10.0f;
-    // Garlic.body.AngularVelocity = 10.0f;
-
-	// loop
-	const f4 RENDER_MS = 1.0f/120.0f;
-	const f4 PHYSICS_MS = 1.0f/60.0f;
-	f4 render_dt = 0.0f;
-	f4 physics_dt = 0.0f;
-	u4 time_physics_prev = SDL_GetTicks();
-	f4 camera_angle = 0.0f;
-	f4 cam_radius = 20.0f;
-	vec3 prev_camera_pos;
+    // loop
+    const f4 RENDER_MS = 1.0f/120.0f;
+    const f4 PHYSICS_MS = 1.0f/60.0f;
+    f4 render_dt = 0.0f;
+    f4 physics_dt = 0.0f;
+    u4 time_physics_prev = SDL_GetTicks();
+    f4 camera_angle = 0.0f;
+    f4 cam_radius = 20.0f;
+    vec3 prev_camera_pos;
     vec3 camera_pos;
     vec3 camera_pos_on_radius;
 
-	while(!key.quit_app)
-	{
-		u4 time_physics_curr = SDL_GetTicks();
-		f4 frame_time = ((f4)(time_physics_curr - time_physics_prev)) / 1000.0f;
-		time_physics_prev = time_physics_curr;
+    while(!key.quit_app)
+    {
+        u4 time_physics_curr = SDL_GetTicks();
+        f4 frame_time = ((f4)(time_physics_curr - time_physics_prev)) / 1000.0f;
+        time_physics_prev = time_physics_curr;
 
         if (frame_time >= 0.064f) {
             frame_time = 0.064f;
@@ -119,12 +114,12 @@ int main(int argc, char* argv[])
 
         // frame_time *= 0.15f;
 
-		poll_events();
+        poll_events();
 
-		physics_dt += frame_time;
-		while (physics_dt >= PHYSICS_MS)
-		{
-			physics_dt -= PHYSICS_MS;
+        physics_dt += frame_time;
+        while (physics_dt >= PHYSICS_MS)
+        {
+            physics_dt -= PHYSICS_MS;
 
             /*
                 Camera
@@ -157,14 +152,14 @@ int main(int argc, char* argv[])
 
             /* user input */
             const f4 push = 0.025f;
-            if (single_press(key.a)) Garlic.body.CMForce.y += push;
-            if (single_press(key.w)) Garlic.body.CMForce.z += push;
-            if (single_press(key.s)) Garlic.body.CMForce.z -= push;
-            if (single_press(key.d)) Garlic.body.CMForce.y -= push;
-            if (single_press(key.j)) Ball.body.CMForce.y += push;
-            if (single_press(key.i)) Ball.body.CMForce.z += push;
-            if (single_press(key.k)) Ball.body.CMForce.z -= push;
-            if (single_press(key.l)) Ball.body.CMForce.y -= push;
+            if (single_press(key.a)) Garlic.body.force.y += push;
+            if (single_press(key.w)) Garlic.body.force.z += push;
+            if (single_press(key.s)) Garlic.body.force.z -= push;
+            if (single_press(key.d)) Garlic.body.force.y -= push;
+            if (single_press(key.j)) Ball.body.force.y += push;
+            if (single_press(key.i)) Ball.body.force.z += push;
+            if (single_press(key.k)) Ball.body.force.z -= push;
+            if (single_press(key.l)) Ball.body.force.y -= push;
 
             auto step = [] (RigidBody &body)
             {
@@ -173,62 +168,102 @@ int main(int argc, char* argv[])
                 body.remaining_velocity = 1.0f;
                 body.collision_pos = body.pos;
 
-                // add forces
-                // body.CMForce = body.CMForce + forces
-                body.CMForce.z = body.CMForce.z + body.gravity;
+                // --
 
-                // calculate new velocities
-                body.velocity = body.velocity + (body.one_over_mass * body.CMForce);
+                body.force.z = body.force.z + body.gravity;
 
-                body.AngularVelocity = body.AngularVelocity + body.one_over_CM_moment_of_inertia * body.torque;
+                // body.torque = crossproduct ( setv( 0, 0, -body.radius ), setv( 0, -0.00001f, 0 ) );
 
-                body.velocity = body.velocity * 0.85f; /* @todo: remove this */
-                body.AngularVelocity = body.AngularVelocity;
-                
-                // clear forces
-                body.torque = 0.0f;
-                body.CMForce = setv(0.0f,0.0f,0.0f);
+                // --
+
+                body.velocity = body.velocity + (body.one_over_mass * body.force);
+                body.velocity = body.velocity * 0.95f;
+
+                body.future_pos = body.pos + body.velocity;
+
+                body.orientation = body.orientation + (skew_symmetric(body.angular_velocity) * body.orientation);
+
+                body.angular_momentum = body.angular_momentum + body.torque;
+
+                body.orientation = orthonormalize(body.orientation);
+
+                // --
+
+                body.inverse_MoI_world = body.orientation * body.inverse_MoI_local * transpose(body.orientation);
+
+                body.angular_velocity = body.angular_momentum * body.inverse_MoI_world;
+
+                // -- clear forces
+                body.torque = setv();
+                body.force = setv();
             };
 
-            // move everything
+            // apply everything but new position.
             step(Ball.body);
             step(Garlic.body);
 
             // Ball.body + Garlic.body
             if (collision_circle_circle(Ball.body, Garlic.body))
             {
-                // apply_impulses_3D(Ball.body, Garlic.body);
-                apply_impulses_3D(Ball.body, Garlic.body);
+                auto apply_impulses = [] (RigidBody &A, RigidBody &B)
+                {
+                    vec3 r = A.PoC;
+                    vec3 rb = B.PoC;
+
+                    vec3 v1 = A.velocity + crossproduct(A.angular_velocity, r);
+                    vec3 v2 = B.velocity + crossproduct(B.angular_velocity, rb);
+                    vec3 v = v1 - v2;
+
+                    f4 ImpulseNumerator = -(1.0f + ((A.coefficient_restitution + B.coefficient_restitution) * 0.5f)) * dot( v, A.collision_normal);
+
+                    vec3 inertia_vector_normal = crossproduct(crossproduct(r, A.collision_normal) * A.inverse_MoI_world, r) + crossproduct(crossproduct(rb, A.collision_normal) * B.inverse_MoI_world, rb);
+                    f4 ImpulseDenominator = (A.one_over_mass + B.one_over_mass) + dot(inertia_vector_normal, A.collision_normal);
+
+                    vec3 Impulse = (ImpulseNumerator / ImpulseDenominator) * A.collision_normal;
+
+                    A.velocity = A.velocity + A.one_over_mass * Impulse;
+                    A.angular_momentum = A.angular_momentum + crossproduct(r, Impulse);
+                    // compute affected auxiliary quantities
+                    A.angular_velocity = A.angular_momentum * A.inverse_MoI_world;
+
+                    // -- equal and opposite
+                    B.velocity = B.velocity + (B.one_over_mass * Impulse * -1.0f);
+                    B.angular_momentum = B.angular_momentum + (crossproduct(rb, Impulse) * -1.0f);
+                    // compute affected auxiliary quantities
+                    B.angular_velocity = B.angular_momentum * B.inverse_MoI_world;
+
+                    // calculate new future position
+                    A.future_pos = A.future_pos + A.velocity * A.remaining_velocity;
+                    B.future_pos = B.future_pos + B.velocity * B.remaining_velocity;
+                };
+                apply_impulses(Ball.body, Garlic.body);
             }
 
-            auto apply = [] (RigidBody &body)
-            {
-                body.pos = body.pos + body.velocity * body.remaining_velocity;
-                // body.Orientation = body.Orientation + body.AngularVelocity;
+            auto post_step = [] (RigidBody &body) {
+                body.pos = body.future_pos;
             };
-
-            apply(Ball.body);
-            apply(Garlic.body);
-		}
+            post_step(Ball.body);
+            post_step(Garlic.body);
+        }
 
         f4 alpha = physics_dt / PHYSICS_MS;
 
-		render_dt += frame_time;
-		if (render_dt >= RENDER_MS)
-		{
-			render_dt = 0;
+        render_dt += frame_time;
+        if (render_dt >= RENDER_MS)
+        {
+            render_dt = 0;
 
             // X+ forward, Y+ left, Z+ up
-			glm::mat4 view = glm::lookAt(
-				glmv(lerp(prev_camera_pos,camera_pos,alpha) + camera_pos_on_radius),
-				glmv(camera_pos),
-				glm::vec3(0.0f, 0.0f, 1.0f));
+            glm::mat4 view = glm::lookAt(
+                glmv(lerp(prev_camera_pos,camera_pos,alpha) + camera_pos_on_radius),
+                glmv(camera_pos),
+                glm::vec3(0.0f, 0.0f, 1.0f));
 
-			glm::mat4 projection = glm::perspective(45.0f, 1.0f*sgl.width/sgl.height, 0.1f, 100.0f);
+            glm::mat4 projection = glm::perspective(45.0f, 1.0f*sgl.width/sgl.height, 0.1f, 100.0f);
 
-		   	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-			glClearColor(0.23f, 0.47f, 0.58f, 1.0f); 
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+            glClearColor(0.23f, 0.47f, 0.58f, 1.0f); 
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
             auto render = [alpha, view, projection] (Entity &entity)
             {
@@ -258,18 +293,18 @@ int main(int argc, char* argv[])
             render(Ball);
             render(Garlic);
 
-			SDL_GL_SwapWindow(sgl.window);
-		}
-		memory.transient_current = 0;
-	}
-	
+            SDL_GL_SwapWindow(sgl.window);
+        }
+        memory.transient_current = 0;
+    }
+    
     // Texture data
     for (u4 i = 0; i < library.texture_count; i++)
     {
         glDeleteTextures(1, &library.textures[i].id);
     }
 
-	// Mesh data
+    // Mesh data
     for (u4 i = 0; i < library.mesh_count; i++)
     {
         glDeleteBuffers(1, &library.meshes[i].vertex_buffer);
@@ -277,21 +312,21 @@ int main(int argc, char* argv[])
     }
 
     // Shader
-	glDeleteProgram(basic_texture.program);
-	
+    glDeleteProgram(basic_texture.program);
+    
     // Primitives
     glDeleteBuffers(1, &plane.verts);
-	glDeleteBuffers(1, &plane.colors);
-	glDeleteBuffers(1, &plane.indices);
-	glDeleteBuffers(1, &plane.uv_coords);
-	
+    glDeleteBuffers(1, &plane.colors);
+    glDeleteBuffers(1, &plane.indices);
+    glDeleteBuffers(1, &plane.uv_coords);
+    
     SDL_DestroyWindow( sgl.window );
-	SDL_Quit();
+    SDL_Quit();
 
-	free(memory.TransientStorage);
-	free(memory.PermanentStorage);
+    free(memory.TransientStorage);
+    free(memory.PermanentStorage);
 
-	return 0;
+    return 0;
 }
 
 inline void poll_events()

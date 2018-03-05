@@ -13,9 +13,9 @@ varying vec2 UV;
 
 void main(void)
 {
-	vec3 scaled_vertex = coord3d * scale;
+    vec3 scaled_vertex = coord3d * scale;
 
-  	gl_Position = proj * view * model * rotation * vec4(scaled_vertex.x,scaled_vertex.y,scaled_vertex.z, 1.0);
+    gl_Position = proj * view * model * rotation * vec4(scaled_vertex.x,scaled_vertex.y,scaled_vertex.z, 1.0);
 
-  	UV = tex_coord2d;
+    UV = tex_coord2d;
 }

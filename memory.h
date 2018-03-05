@@ -100,12 +100,12 @@ void initialize_memory(GameMemory &memory, uint64_t num_megabytes, uint64_t tran
     memory.PermanentStorageSize = Megabytes((uint64_t)num_megabytes);// 9 * 1024 * 1024;
     memory.PermanentStorage = malloc(memory.PermanentStorageSize);
     #ifdef MEM_DEBUG
-    	if (memory.PermanentStorage)
-    	{
+        if (memory.PermanentStorage)
+        {
             // std::cout << "Memory successfully mallocd." << std::endl;
-    	} else {
-    		std::cout << "ERROR: Failed to malloc memory." << std::endl;
-    	}
+        } else {
+            std::cout << "ERROR: Failed to malloc memory." << std::endl;
+        }
     #endif
     
     memory.current = 0;

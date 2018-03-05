@@ -19,6 +19,11 @@ Each piece, or part, of the whole of nature is always merely an approximation to
     approximation
 
 
+philip roth - the human stain
+
+the performance of changing your model simulation
+
+
 --- scratch ---
 
 
@@ -73,3 +78,26 @@ auto calculate_PoC_sphere_plane = [] (RigidBody &Sphere, vec3 plane_normal)
     f4 t = ( (dot(P, N) + d) * -1.0f) / dot(V, N);
     vec3 PoC = P + (V * t);
 };
+
+
+
+
+
+b = point of application of force
+
+b = o + Ar = o + r
+
+b_world_position = o_pos + rotation_matrix * b_local_pos 
+                 = o_pos + b_rotated_local_pos
+
+b_velocity = o_velocity + crossproduct(angular_velocity, b_local_pos)
+
+
+b_velocity = o_velocity  +  angular_velocity*b_local_pos
+
+
+b_velocity = o_velocity  +  angular_velocity  ×  rotation_matrix*b_local_pos
+           = o_velocity  +  angular_velocity  ×  b_rotated_local_pos
+
+
+b_accel = o_accel  +  angular_accel ×  b_rotated_local_pos
