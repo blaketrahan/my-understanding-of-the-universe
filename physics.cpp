@@ -1,51 +1,92 @@
-void apply_impulses_2D (RigidBody &A, RigidBody &B)
+void step (RigidBody &body)
 {
+    // Source: Chris Hecker pdf
 
-    /*
-        source:
-            http://chrishecker.com/images/e/e7/Gdmphys3.pdf
+    body.prev_pos = body.pos;
+    body.collision_time = 0.0f;
+    body.remaining_velocity = 1.0f;
+    body.collision_pos = body.pos;
 
-        @todo: understand this better
-    */
-    /*
-    auto Perp = [] (vec3 v) {
-        vec3 r;
-        r.x = 0.0f;
-        r.y = -v.z;
-        r.z = v.y;
-        return r;
-    };
-    vec3 relative_velocity = A.velocity - B.velocity;
+    // --
 
-    vec3 N = A.collision_normal;
+    body.force.z = body.force.z + body.gravity;
 
-    f4 impulse_numerator = -(1.0f + A.coefficient_restitution) * dot(relative_velocity, A.collision_normal);
-    f4 impulse_denominator = dot(A.collision_normal,A.collision_normal) * (A.one_over_mass + B.one_over_mass);
-    
-    f4 A_perpdot = dot(Perp(A.PoC), relative_velocity);
-    
-    impulse_denominator += A_perpdot * A_perpdot * A.one_over_CM_moment_of_inertia;
-    impulse_denominator += A_perpdot * A_perpdot * B.one_over_CM_moment_of_inertia;
-    
-    f4 J = impulse_numerator / impulse_denominator;
+    // body.torque = crossproduct ( setv( 0, 0, -body.radius ), setv( 0, -0.00001f, 0 ) );
 
-    auto do_impulse = [N, Perp] (f4 J, RigidBody &body)
-    {
-        body.velocity = body.velocity + (N * body.one_over_mass * J);
+    // --
 
-        body.AngularVelocity = body.AngularVelocity + dot(Perp(body.PoC), N * J) * body.one_over_CM_moment_of_inertia;
-    };
+    body.velocity = body.velocity + (body.one_over_mass * body.force);
+    body.velocity = body.velocity * 0.95f;
 
-    do_impulse( J, A);
-    do_impulse(-J, B);
-    */
+    body.future_pos = body.pos + body.velocity;
+
+    body.orientation = body.orientation + (skew_symmetric(body.angular_velocity) * body.orientation);
+
+    body.angular_momentum = body.angular_momentum + body.torque;
+
+    body.orientation = orthonormalize(body.orientation);
+
+    // --
+
+    body.inverse_MoI_world = body.orientation * body.inverse_MoI_local * transpose(body.orientation);
+
+    body.angular_velocity = body.angular_momentum * body.inverse_MoI_world;
+
+    // -- clear forces
+    body.torque = setv();
+    body.force = setv();
 }
 
-b4 collision_circle_circle (RigidBody &A, RigidBody &B)
+void resolve_dynamic_static (RigidBody &A, RigidBody &B)
+{
+    // Rather than equal and opposite, body A should reflect off B
+}
+
+void resolve_dynamic_dynamic (RigidBody &A, RigidBody &B)
+{
+    // Source: Chris Hecker pdf
+
+    vec3 r = A.PoC;
+    vec3 rb = B.PoC;
+
+    vec3 v1 = A.velocity + crossproduct(A.angular_velocity, r);
+    vec3 v2 = B.velocity + crossproduct(B.angular_velocity, rb);
+    vec3 v = v1 - v2;
+
+    f4 ImpulseNumerator = -(1.0f + ((A.coefficient_restitution + B.coefficient_restitution) * 0.5f)) * dot( v, A.collision_normal);
+
+    vec3 inertia_vector_normal = crossproduct(crossproduct(r, A.collision_normal) * A.inverse_MoI_world, r) + crossproduct(crossproduct(rb, A.collision_normal) * B.inverse_MoI_world, rb);
+    f4 ImpulseDenominator = (A.one_over_mass + B.one_over_mass) + dot(inertia_vector_normal, A.collision_normal);
+
+    vec3 Impulse = (ImpulseNumerator / ImpulseDenominator) * A.collision_normal;
+
+    A.velocity = A.velocity + A.one_over_mass * Impulse;
+    A.angular_momentum = A.angular_momentum + crossproduct(r, Impulse);
+    // compute affected auxiliary quantities
+    A.angular_velocity = A.angular_momentum * A.inverse_MoI_world;
+
+    // -- equal and opposite
+    B.velocity = B.velocity + (B.one_over_mass * Impulse * -1.0f);
+    B.angular_momentum = B.angular_momentum + (crossproduct(rb, Impulse) * -1.0f);
+    // compute affected auxiliary quantities
+    B.angular_velocity = B.angular_momentum * B.inverse_MoI_world;
+
+    // calculate new future position
+    A.future_pos = A.future_pos + A.velocity * A.remaining_velocity;
+    B.future_pos = B.future_pos + B.velocity * B.remaining_velocity;
+}
+
+b4 collide_sphere_cuboid_AABB (RigidBody &A, RigidBody &B)
 {
     /*
-        2D or 3D
+        Source: http://www.metanetsoftware.com/technique/tutorialA.html
+    */
+    return false;
+}
 
+b4 collide_sphere_sphere (RigidBody &A, RigidBody &B)
+{
+    /*
         Detect collision and correct velocities of:
             1) one moving circle against one stationary circle
             2) two moving circles
@@ -163,54 +204,4 @@ b4 collision_circle_circle (RigidBody &A, RigidBody &B)
     B.PoC = B.collision_normal * -B.radius;
 
     return true;
-}
-
-void reflect_circle_circle (RigidBody &A, RigidBody &B)
-{
-    /*
-        @todo: currently assumes constant velocity over the time of the step.
-               in reality, each body has lost some of its velocity mid-step,
-               unless the collision time is at exactly 0.
-    */
-    /*
-        2D or 3D
-
-        Collision resolution between:
-            1) Two circles, regardless of motion.
-
-        Source: https://www.gamasutra.com/view/feature/131424/pool_hall_lessons_fast_accurate_.php
-    */
-    /*
-        Normalized vector N from pos A to pos B
-    */
-    vec3 N = B.pos - A.pos;
-    N = normal(N);
-    /*
-        Find the length of the component of each velocity vector
-        along the N (the normal running through the collision point)
-    */
-    f4 component_length_A = dot(A.velocity, N);
-    f4 component_length_B = dot(B.velocity, N);
-
-    /*
-        @todo: Don't understand this
-        Using the optimized version, 
-        optimizedP =  2(a1 - a2)
-                     ------------
-                     mass1 + mass2
-        P = magnitude of the change in the momentums of the circles before and after
-    */
-    f4 P = (2.0f * (component_length_A - component_length_B)) / (A.mass + B.mass);
-
-    /*
-        Calculate new velocites 
-    */    
-    vec3 v1_after = A.velocity - (N * (P * B.mass));
-    vec3 v2_after = B.velocity + (N * (P * A.mass));
-
-    /*
-        Apply changes.
-    */
-    A.velocity = v1_after * (1.0f - A.collision_time);
-    B.velocity = v2_after * (1.0f - B.collision_time);
 }

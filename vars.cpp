@@ -109,7 +109,12 @@ struct RigidBody
     f4 one_over_mass;
     f4 coefficient_restitution;
 
-    f4 moment_of_inertia;
+    f4 width;
+    f4 height;
+    f4 depth;
+
+    u4 type;
+
     mat3x3 MoI_local;
     mat3x3 inverse_MoI_local;
     mat3x3 inverse_MoI_world;

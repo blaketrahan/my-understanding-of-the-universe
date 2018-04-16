@@ -1,7 +1,12 @@
 /*
     http://www.feynmanlectures.caltech.edu/I_toc.html
     http://chrishecker.com/Physics_References
-    http://chrishecker.com/Rigid_Body_Dynamics  
+    http://chrishecker.com/Rigid_Body_Dynamics
+
+    Things I would like to implement:
+    - energy calculator: beginning and end should be equal
+        - graph it (2 graphs, blue potential, red kinetic)
+        - running graph, centered dot with trailing line
 */
 
 /*
@@ -25,27 +30,50 @@ int main(int argc, char* argv[])
 
     if (!create_basic_texture_shader()) return 0;
 
-    library.texture_count = 2;
-    library.textures = (Library::Texture*)alloc(memory, sizeof(Library::Texture) * library.texture_count);
-    library.mesh_count = 1;
-    library.meshes = (Library::Mesh*)alloc(memory, sizeof(Library::Mesh) * library.mesh_count);
+    library.textures = (Library::Texture*)alloc(memory, sizeof(Library::Texture) * 20);
+    library.meshes = (Library::Mesh*)alloc(memory, sizeof(Library::Mesh) * 20);
 
     load_texture("media/steel.png", 1024, 1024, 3);
     load_texture("media/aluminum.png", 1024, 1024, 3);
     load_mesh("media/tamanegi.obj");
+    load_mesh("media/cube.obj");
 
     struct BodyInfo {
         f4 restitution = 1.0f;
-        f4 radius = 1.2f;
+        f4 radius = 1.0f; 
         f4 density = 0.01f;
         vec3 pos;
-    };
+        u4 type = 0;
+        b4 dynamic = true;
 
-    auto init_sphere_body = [] (RigidBody &body, BodyInfo info)
+        f4 width = 1.0f;
+        f4 height = 1.0f;
+        f4 depth = 1.0f;
+    };
+    enum BODY_TYPES {
+        TYPE_SPHERE = 0,
+        TYPE_CUBOID,
+    };
+    auto init_body = [] (RigidBody &body, BodyInfo info)
     {
         body.density = info.density;
         body.radius = info.radius;
-        body.volume = (4.0f/3.0f) * PI * info.radius * info.radius * info.radius; // sphere
+        body.width = info.width;
+        body.height = info.height;
+        body.depth = info.depth;
+        body.type = info.type;
+        
+        switch (info.type)
+        {
+            case TYPE_SPHERE:
+                body.volume = (4.0f/3.0f) * PI * info.radius * info.radius * info.radius;
+                break;
+
+            case TYPE_CUBOID:
+                body.volume = info.width * info.height * info.depth;
+                break;
+        }
+
         body.mass = body.density * body.volume;
 
         body.coefficient_restitution = info.restitution;
@@ -59,9 +87,31 @@ int main(int argc, char* argv[])
         body.torque = setv();
 
         // https://en.wikipedia.org/wiki/List_of_moments_of_inertia
-        // solid sphere
-        body.moment_of_inertia = (2.0f/5.0f) * body.mass * info.radius * info.radius;
-        body.MoI_local = identity() * body.moment_of_inertia;
+
+        switch (info.type)
+        {
+            case TYPE_SPHERE:
+            {
+                f4 moment_of_inertia = (2.0f/5.0f) * body.mass * info.radius * info.radius;
+                body.MoI_local = identity() * moment_of_inertia;
+            }
+            break;
+
+            case TYPE_CUBOID:
+            {
+                f4 f = 1.0f/12.0f * body.mass;
+                f4 Ih = f * (body.width * body.width + body.depth * body.depth);
+                f4 Iw = f * (body.depth * body.depth + body.height * body.height);
+                f4 Id = f * (body.width * body.width + body.height * body.height);
+
+                body.MoI_local = identity();
+                body.MoI_local[0] = Iw;
+                body.MoI_local[4] = Ih;
+                body.MoI_local[8] = Id;
+            }
+            break;
+        }
+
         body.inverse_MoI_local = inverse(body.MoI_local); // |I^-1 CM
 
         body.pos = info.pos; // r CM
@@ -80,15 +130,38 @@ int main(int argc, char* argv[])
     BodyInfo info;
 
     Entity Ball;
-    Ball.mesh = get_mesh("media/tamanegi.obj");
-    Ball.texture = get_texture("media/steel.png");
-    init_sphere_body(Ball.body, info);
+        Ball.mesh = get_mesh("media/tamanegi.obj");
+        Ball.texture = get_texture("media/steel.png");
+        info.dynamic = true;
+        info.type = TYPE_SPHERE;
+        info.radius = 1.0f;
+        info.width = info.radius;
+        info.height = info.radius;
+        info.depth = info.radius;
+    init_body(Ball.body, info);
 
     Entity Garlic;
-    Garlic.mesh = get_mesh("media/tamanegi.obj");
-    Garlic.texture = get_texture("media/aluminum.png");
-    info.pos.y = -10.0f;
-    init_sphere_body(Garlic.body, info);
+        Garlic.mesh = get_mesh("media/tamanegi.obj");
+        Garlic.texture = get_texture("media/aluminum.png");
+        info.pos.y = -10.0f;
+        info.dynamic = true;
+        info.type = TYPE_SPHERE;
+        info.radius = 1.0f;
+        info.width = info.radius;
+        info.height = info.radius;
+        info.depth = info.radius;
+    init_body(Garlic.body, info);
+
+    Entity Cuboid;
+        Cuboid.mesh = get_mesh("media/cube.obj");
+        Cuboid.texture = get_texture("media/aluminum.png");
+        info.pos = setv(0.0f, 0.0f, -5.0f);
+        info.dynamic = false;
+        info.type = TYPE_CUBOID;
+        info.width = 5.0f;
+        info.height = 5.0f;
+        info.depth = 0.25f;
+    init_body(Cuboid.body, info);
 
     // loop
     const f4 RENDER_MS = 1.0f/120.0f;
@@ -150,7 +223,7 @@ int main(int argc, char* argv[])
                 Physics
             */
 
-            /* user input */
+            // user input
             const f4 push = 0.025f;
             if (single_press(key.a)) Garlic.body.force.y += push;
             if (single_press(key.w)) Garlic.body.force.z += push;
@@ -161,89 +234,28 @@ int main(int argc, char* argv[])
             if (single_press(key.k)) Ball.body.force.z -= push;
             if (single_press(key.l)) Ball.body.force.y -= push;
 
-            auto step = [] (RigidBody &body)
-            {
-                body.prev_pos = body.pos;
-                body.collision_time = 0.0f;
-                body.remaining_velocity = 1.0f;
-                body.collision_pos = body.pos;
-
-                // --
-
-                body.force.z = body.force.z + body.gravity;
-
-                // body.torque = crossproduct ( setv( 0, 0, -body.radius ), setv( 0, -0.00001f, 0 ) );
-
-                // --
-
-                body.velocity = body.velocity + (body.one_over_mass * body.force);
-                body.velocity = body.velocity * 0.95f;
-
-                body.future_pos = body.pos + body.velocity;
-
-                body.orientation = body.orientation + (skew_symmetric(body.angular_velocity) * body.orientation);
-
-                body.angular_momentum = body.angular_momentum + body.torque;
-
-                body.orientation = orthonormalize(body.orientation);
-
-                // --
-
-                body.inverse_MoI_world = body.orientation * body.inverse_MoI_local * transpose(body.orientation);
-
-                body.angular_velocity = body.angular_momentum * body.inverse_MoI_world;
-
-                // -- clear forces
-                body.torque = setv();
-                body.force = setv();
-            };
-
             // apply everything but new position.
             step(Ball.body);
             step(Garlic.body);
+            step(Cuboid.body);
 
-            // Ball.body + Garlic.body
-            if (collision_circle_circle(Ball.body, Garlic.body))
+            if (collide_sphere_sphere(Ball.body, Garlic.body))
             {
-                auto apply_impulses = [] (RigidBody &A, RigidBody &B)
-                {
-                    vec3 r = A.PoC;
-                    vec3 rb = B.PoC;
-
-                    vec3 v1 = A.velocity + crossproduct(A.angular_velocity, r);
-                    vec3 v2 = B.velocity + crossproduct(B.angular_velocity, rb);
-                    vec3 v = v1 - v2;
-
-                    f4 ImpulseNumerator = -(1.0f + ((A.coefficient_restitution + B.coefficient_restitution) * 0.5f)) * dot( v, A.collision_normal);
-
-                    vec3 inertia_vector_normal = crossproduct(crossproduct(r, A.collision_normal) * A.inverse_MoI_world, r) + crossproduct(crossproduct(rb, A.collision_normal) * B.inverse_MoI_world, rb);
-                    f4 ImpulseDenominator = (A.one_over_mass + B.one_over_mass) + dot(inertia_vector_normal, A.collision_normal);
-
-                    vec3 Impulse = (ImpulseNumerator / ImpulseDenominator) * A.collision_normal;
-
-                    A.velocity = A.velocity + A.one_over_mass * Impulse;
-                    A.angular_momentum = A.angular_momentum + crossproduct(r, Impulse);
-                    // compute affected auxiliary quantities
-                    A.angular_velocity = A.angular_momentum * A.inverse_MoI_world;
-
-                    // -- equal and opposite
-                    B.velocity = B.velocity + (B.one_over_mass * Impulse * -1.0f);
-                    B.angular_momentum = B.angular_momentum + (crossproduct(rb, Impulse) * -1.0f);
-                    // compute affected auxiliary quantities
-                    B.angular_velocity = B.angular_momentum * B.inverse_MoI_world;
-
-                    // calculate new future position
-                    A.future_pos = A.future_pos + A.velocity * A.remaining_velocity;
-                    B.future_pos = B.future_pos + B.velocity * B.remaining_velocity;
-                };
-                apply_impulses(Ball.body, Garlic.body);
+                resolve_dynamic_dynamic(Ball.body, Garlic.body);
             }
 
+            if (collide_sphere_cuboid_AABB(Ball.body, Cuboid.body))
+            {
+                resolve_dynamic_static(Ball.body, Garlic.body);
+            }
+
+            // apply new position
             auto post_step = [] (RigidBody &body) {
                 body.pos = body.future_pos;
             };
             post_step(Ball.body);
             post_step(Garlic.body);
+            post_step(Cuboid.body);
         }
 
         f4 alpha = physics_dt / PHYSICS_MS;
@@ -284,7 +296,7 @@ int main(int argc, char* argv[])
                 {
                     state.world = lerp(entity.body.prev_pos, entity.body.pos, alpha);
                 }
-                state.scale = setv(entity.body.radius);
+                state.scale = setv(entity.body.width, entity.body.height, entity.body.depth);
                 state.texture = entity.texture;
                 state.orient = entity.body.orientation;
                 render_mesh(state, library.meshes[entity.mesh]);
@@ -292,6 +304,7 @@ int main(int argc, char* argv[])
 
             render(Ball);
             render(Garlic);
+            render(Cuboid);
 
             SDL_GL_SwapWindow(sgl.window);
         }
