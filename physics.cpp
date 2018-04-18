@@ -1,3 +1,84 @@
+
+enum BODY_TYPES {
+    TYPE_SPHERE = 0,
+    TYPE_CUBOID,
+};
+
+struct Plane {
+    /*
+        Counter Clockwise
+        Top Left -> Bottom Left -> Bottom Right -> Top Right
+    */
+    vec3 pos; // local to rigidbody center
+    vec3 normal;
+    vec3 p[4]; // local to pos
+};
+
+struct RigidBody 
+{
+    f4 radius;
+    f4 density;
+    f4 volume;
+    f4 mass;
+    f4 gravity;
+    f4 one_over_mass;
+    f4 coefficient_restitution;
+
+    f4 width;
+    f4 height;
+    f4 depth;
+
+    u4 type;
+
+    mat3x3 MoI_local;
+    mat3x3 inverse_MoI_local;
+    mat3x3 inverse_MoI_world;
+
+    vec3 prev_pos;
+    vec3 pos;
+    vec3 future_pos;
+    mat3x3 orientation;
+    vec3 angular_momentum;
+    vec3 velocity;
+    vec3 angular_velocity;
+
+    vec3 force;
+    vec3 torque;
+
+    // Collision info from last detected collision
+    f4 collision_time;
+    f4 remaining_velocity;
+    vec3 collision_pos;
+    vec3 collision_normal;
+    vec3 PoC;
+
+    Plane* planes = 0;
+    u4 num_plane = 0;
+};
+
+struct Entity 
+{
+    /* Physics */
+    RigidBody body;
+
+    /* Rendering */
+    u4 mesh;
+    GLuint texture;
+};
+
+struct BodyInfo {
+    f4 restitution = 1.0f;
+    f4 radius = 1.0f; 
+    f4 density = 0.01f;
+    vec3 pos;
+    u4 type = 0;
+    b4 dynamic = true;
+
+    f4 width = 1.0f;
+    f4 height = 1.0f;
+    f4 depth = 1.0f;
+};
+
 void step (RigidBody &body)
 {
     // Source: Chris Hecker pdf
@@ -74,14 +155,6 @@ void resolve_dynamic_dynamic (RigidBody &A, RigidBody &B)
     // calculate new future position
     A.future_pos = A.future_pos + A.velocity * A.remaining_velocity;
     B.future_pos = B.future_pos + B.velocity * B.remaining_velocity;
-}
-
-b4 collide_sphere_cuboid (RigidBody &A, RigidBody &B)
-{
-    /*
-        Source: http://ericleong.me/research/circle-line/
-    */
-    return false;
 }
 
 b4 collide_sphere_sphere (RigidBody &A, RigidBody &B)
@@ -204,4 +277,157 @@ b4 collide_sphere_sphere (RigidBody &A, RigidBody &B)
     B.PoC = B.collision_normal * -B.radius;
 
     return true;
+}
+void init_body (RigidBody &body, BodyInfo info)
+{
+    body.density = info.density;
+    body.radius = info.radius;
+    body.width = info.width;
+    body.height = info.height;
+    body.depth = info.depth;
+    body.type = info.type;
+    
+    switch (info.type)
+    {
+        case TYPE_SPHERE:
+            body.volume = (4.0f/3.0f) * PI * info.radius * info.radius * info.radius;
+            break;
+
+        case TYPE_CUBOID:
+            body.volume = info.width * info.height * info.depth;
+            break;
+    }
+
+    body.mass = body.density * body.volume;
+
+    body.coefficient_restitution = info.restitution;
+
+    body.one_over_mass = 1.0f / body.mass;
+
+    const f4 gravity = 0.0f;//0.01f;
+    body.gravity = -gravity / body.one_over_mass;
+
+    body.force = setv();
+    body.torque = setv();
+
+    // https://en.wikipedia.org/wiki/List_of_moments_of_inertia
+
+    switch (info.type)
+    {
+        case TYPE_SPHERE:
+        {
+            f4 moment_of_inertia = (2.0f/5.0f) * body.mass * info.radius * info.radius;
+            body.MoI_local = identity() * moment_of_inertia;
+        }
+        break;
+
+        case TYPE_CUBOID:
+        {
+            f4 f = 1.0f/12.0f * body.mass;
+            f4 Ih = f * (body.width * body.width + body.depth * body.depth);
+            f4 Iw = f * (body.depth * body.depth + body.height * body.height);
+            f4 Id = f * (body.width * body.width + body.height * body.height);
+
+            body.MoI_local = identity();
+            body.MoI_local[0] = Iw;
+            body.MoI_local[4] = Ih;
+            body.MoI_local[8] = Id;
+        }
+        break;
+    }
+
+    body.inverse_MoI_local = inverse(body.MoI_local); // |I^-1 CM
+
+    body.pos = info.pos; // r CM
+    body.prev_pos = info.pos; 
+    body.velocity = setv(); // v CM
+    body.angular_velocity = setv();
+    body.orientation = from_axis_angle(setv(1.0f,0.0f,0.0f), degtorad(0.0f)); // A
+    body.angular_momentum = setv(); // L CM
+
+    body.inverse_MoI_world = body.orientation * body.inverse_MoI_local * transpose(body.orientation); // I^-1 CM
+}
+
+/*
+
+    Utility functions
+
+*/
+
+void add_planar_body (RigidBody &body, u4 total_plane)
+{
+    body.planes = (Plane*)alloc(memory, sizeof(plane) * total_plane);
+    body.num_plane = 0;
+}
+
+void add_plane (RigidBody &body, vec3 center, vec3 p1, vec3 p2, vec3 p3, vec3 p4)
+{
+    u4 i = body.num_plane;
+
+    body.planes[i].pos = center;
+    body.planes[i].p[0] = p1;
+    body.planes[i].p[1] = p2;
+    body.planes[i].p[2] = p3;
+    body.planes[i].p[3] = p4;
+
+    vec3 dir = crossproduct((p2 - p1), (p3 - p1));
+    body.planes[i].normal = dir / length(dir);
+
+    body.num_plane++;
+}
+
+void build_planes_from_cuboid (RigidBody &body)
+{
+    /*
+        Builds an AABB cube from planes to fit the dimensions of the RigidBody
+    */
+
+    add_planar_body(body, 6);
+
+    f4 hw = body.width  * .5f;
+    f4 hh = body.height * .5f;
+    f4 hd = body.depth  * .5f;
+
+    // X+
+    add_plane(body,
+        setv(   hw,  .0f,  .0f),
+        setv(  .0f,  -hh,   hd ),
+        setv(  .0f,  -hh,  -hd ),
+        setv(  .0f,   hh,  -hd ),
+        setv(  .0f,   hh,   hd ));
+    // X-
+    add_plane(body,
+        setv(  -hw,  .0f,  .0f),
+        setv(  .0f,   hh,   hd ),
+        setv(  .0f,   hh,  -hd ),
+        setv(  .0f,  -hh,  -hd ),
+        setv(  .0f,  -hh,   hd ));
+    // Y+
+    add_plane(body,
+        setv(  .0f,   hh,  .0f),
+        setv(   hw,  .0f,   hd ),
+        setv(   hw,  .0f,  -hd ),
+        setv(  -hw,  .0f,  -hd ),
+        setv(  -hw,  .0f,   hd ));
+    // Y-
+    add_plane(body,
+        setv(  .0f,   hh,  .0f),
+        setv(  -hw,  .0f,   hd ),
+        setv(  -hw,  .0f,  -hd ),
+        setv(   hw,  .0f,  -hd ),
+        setv(   hw,  .0f,   hd ));
+    // Z+
+    add_plane(body,
+        setv(  .0f,  .0f,   hd),
+        setv(   hw,   hh,  .0f ),
+        setv(  -hw,   hh,  .0f ),
+        setv(  -hw,  -hh,  .0f ),
+        setv(   hw,  -hh,  .0f ));
+    // Z-
+    add_plane(body,
+        setv(  .0f,  .0f,  -hd),
+        setv(   hw,  -hh,  .0f ),
+        setv(  -hw,  -hh,  .0f ),
+        setv(  -hw,   hh,  .0f ),
+        setv(   hw,   hh,  .0f ));
 }

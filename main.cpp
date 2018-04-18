@@ -38,92 +38,6 @@ int main(int argc, char* argv[])
     load_mesh("media/tamanegi.obj");
     load_mesh("media/cube.obj");
 
-    struct BodyInfo {
-        f4 restitution = 1.0f;
-        f4 radius = 1.0f; 
-        f4 density = 0.01f;
-        vec3 pos;
-        u4 type = 0;
-        b4 dynamic = true;
-
-        f4 width = 1.0f;
-        f4 height = 1.0f;
-        f4 depth = 1.0f;
-    };
-    enum BODY_TYPES {
-        TYPE_SPHERE = 0,
-        TYPE_CUBOID,
-    };
-    auto init_body = [] (RigidBody &body, BodyInfo info)
-    {
-        body.density = info.density;
-        body.radius = info.radius;
-        body.width = info.width;
-        body.height = info.height;
-        body.depth = info.depth;
-        body.type = info.type;
-        
-        switch (info.type)
-        {
-            case TYPE_SPHERE:
-                body.volume = (4.0f/3.0f) * PI * info.radius * info.radius * info.radius;
-                break;
-
-            case TYPE_CUBOID:
-                body.volume = info.width * info.height * info.depth;
-                break;
-        }
-
-        body.mass = body.density * body.volume;
-
-        body.coefficient_restitution = info.restitution;
-
-        body.one_over_mass = 1.0f / body.mass;
-
-        const f4 gravity = 0.0f;//0.01f;
-        body.gravity = -gravity / body.one_over_mass;
-
-        body.force = setv();
-        body.torque = setv();
-
-        // https://en.wikipedia.org/wiki/List_of_moments_of_inertia
-
-        switch (info.type)
-        {
-            case TYPE_SPHERE:
-            {
-                f4 moment_of_inertia = (2.0f/5.0f) * body.mass * info.radius * info.radius;
-                body.MoI_local = identity() * moment_of_inertia;
-            }
-            break;
-
-            case TYPE_CUBOID:
-            {
-                f4 f = 1.0f/12.0f * body.mass;
-                f4 Ih = f * (body.width * body.width + body.depth * body.depth);
-                f4 Iw = f * (body.depth * body.depth + body.height * body.height);
-                f4 Id = f * (body.width * body.width + body.height * body.height);
-
-                body.MoI_local = identity();
-                body.MoI_local[0] = Iw;
-                body.MoI_local[4] = Ih;
-                body.MoI_local[8] = Id;
-            }
-            break;
-        }
-
-        body.inverse_MoI_local = inverse(body.MoI_local); // |I^-1 CM
-
-        body.pos = info.pos; // r CM
-        body.prev_pos = info.pos; 
-        body.velocity = setv(); // v CM
-        body.angular_velocity = setv();
-        body.orientation = from_axis_angle(setv(1.0f,0.0f,0.0f), degtorad(0.0f)); // A
-        body.angular_momentum = setv(); // L CM
-    
-        body.inverse_MoI_world = body.orientation * body.inverse_MoI_local * transpose(body.orientation); // I^-1 CM
-    };
-
     /*
         Entities
     */
@@ -159,24 +73,12 @@ int main(int argc, char* argv[])
         info.pos = setv(0.0f, 0.0f, -5.0f);
         info.dynamic = false;
         info.type = TYPE_CUBOID;
-        info.width = 5.0f;
-        info.height = 5.0f;
-        info.depth = 0.05f;
+        info.width = 10.0f;
+        info.height = 10.0f;
+        info.depth = .05f;
     init_body(Cuboid.body, info);
 
-    struct Plane {
-        vec3 world_pos;
-        vec3 normal;
-        vec3 p[4];
-    };
-
-    Plane floor;
-    floor.world_pos = Cuboid.body.pos;
-    floor.normal = setv(0.0f, 0.0f, 1.0f);
-    floor.p[0] = setv( 0.5f, -0.5f, 0.0f);
-    floor.p[1] = setv(-0.5f, -0.5f, 0.0f);
-    floor.p[2] = setv(-0.5f,  0.5f, 0.0f);
-    floor.p[3] = setv( 0.5f,  0.5f, 0.0f);
+    build_planes_from_cuboid(Cuboid.body);
 
     // loop
     const f4 RENDER_MS = 1.0f/120.0f;
@@ -259,18 +161,38 @@ int main(int argc, char* argv[])
                 resolve_dynamic_dynamic(Ball.body, Garlic.body);
             }
 
-            auto collide_sphere_plane = [] (vec3 point, f4 radius, Plane &plane)
+            auto collide_sphere_planar_body = [] (RigidBody &A, RigidBody &B, u4* indices, u4 num_index)
             {
-                vec3 V = point - plane.world_pos;
+                // todo: capture which planes to test against before this function is called
+                // todo: rotate planes to match body rotation
+                // todo: test if point is within plane
+                vec3 p = A.pos;
 
-                f4 D = dot(V, plane.normal);
+                /*
+                    Loop through each plane of interest until finding collision
+                */
+                for (u4 i = 0; i < num_index; i++)
+                {
+                    Plane plane = B.planes[indices[i]];
 
-                return (D < radius);
-                // vec3 pt_on_plane = point - (plane.normal * D);
+                    // print(plane.normal);
+                    vec3 world_pos = plane.pos + B.pos;
+
+                    vec3 V = A.pos - world_pos;
+
+                    f4 D = dot(V, plane.normal);
+
+                    if (D < A.radius) return true;
+                }
+                // vec3 pt_on_plane = p - (plane.normal * D);
+                return false;
             };
 
-            if (collide_sphere_plane(Ball.body.pos, Ball.body.radius, floor)) {
-                // cout << "collided" << endl;
+            u4 num_index = 1;
+            u4 indices[1];
+            indices[0] = 4; // just the Z+ plane
+            if (collide_sphere_planar_body(Ball.body, Cuboid.body, indices, num_index)) {
+                // 
             }
 
             // apply new position

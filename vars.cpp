@@ -99,55 +99,6 @@ struct Library
     u4 mesh_count = 0;
 } library;
 
-struct RigidBody 
-{
-    f4 radius;
-    f4 density;
-    f4 volume;
-    f4 mass;
-    f4 gravity;
-    f4 one_over_mass;
-    f4 coefficient_restitution;
-
-    f4 width;
-    f4 height;
-    f4 depth;
-
-    u4 type;
-
-    mat3x3 MoI_local;
-    mat3x3 inverse_MoI_local;
-    mat3x3 inverse_MoI_world;
-
-    vec3 prev_pos;
-    vec3 pos;
-    vec3 future_pos;
-    mat3x3 orientation;
-    vec3 angular_momentum;
-    vec3 velocity;
-    vec3 angular_velocity;
-
-    vec3 force;
-    vec3 torque;
-
-    f4 collision_time;
-    f4 remaining_velocity;
-    vec3 collision_pos;
-    vec3 collision_normal;
-    vec3 PoC;
-};
-
-struct Entity 
-{
-    /* Physics */
-    RigidBody body;
-
-    /* Rendering */
-    u4 mesh;
-    GLuint texture;
-    vec3 scale;
-};
-
 // input
 struct SinglePress
 {
