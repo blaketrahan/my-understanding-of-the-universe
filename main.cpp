@@ -132,6 +132,7 @@ int main(int argc, char* argv[])
     Entity Ball;
         Ball.mesh = get_mesh("media/tamanegi.obj");
         Ball.texture = get_texture("media/steel.png");
+        info.pos = setv(0.0f,5.0f,0.0f);
         info.dynamic = true;
         info.type = TYPE_SPHERE;
         info.radius = 1.0f;
@@ -143,7 +144,7 @@ int main(int argc, char* argv[])
     Entity Garlic;
         Garlic.mesh = get_mesh("media/tamanegi.obj");
         Garlic.texture = get_texture("media/aluminum.png");
-        info.pos.y = -10.0f;
+        info.pos = setv(0.0f,-5.0f,0.0f);
         info.dynamic = true;
         info.type = TYPE_SPHERE;
         info.radius = 1.0f;
@@ -160,8 +161,22 @@ int main(int argc, char* argv[])
         info.type = TYPE_CUBOID;
         info.width = 5.0f;
         info.height = 5.0f;
-        info.depth = 0.25f;
+        info.depth = 0.05f;
     init_body(Cuboid.body, info);
+
+    struct Plane {
+        vec3 world_pos;
+        vec3 normal;
+        vec3 p[4];
+    };
+
+    Plane floor;
+    floor.world_pos = Cuboid.body.pos;
+    floor.normal = setv(0.0f, 0.0f, 1.0f);
+    floor.p[0] = setv( 0.5f, -0.5f, 0.0f);
+    floor.p[1] = setv(-0.5f, -0.5f, 0.0f);
+    floor.p[2] = setv(-0.5f,  0.5f, 0.0f);
+    floor.p[3] = setv( 0.5f,  0.5f, 0.0f);
 
     // loop
     const f4 RENDER_MS = 1.0f/120.0f;
@@ -244,9 +259,18 @@ int main(int argc, char* argv[])
                 resolve_dynamic_dynamic(Ball.body, Garlic.body);
             }
 
-            if (collide_sphere_cuboid_AABB(Ball.body, Cuboid.body))
+            auto collide_sphere_plane = [] (vec3 point, f4 radius, Plane &plane)
             {
-                resolve_dynamic_static(Ball.body, Garlic.body);
+                vec3 V = point - plane.world_pos;
+
+                f4 D = dot(V, plane.normal);
+
+                return (D < radius);
+                // vec3 pt_on_plane = point - (plane.normal * D);
+            };
+
+            if (collide_sphere_plane(Ball.body.pos, Ball.body.radius, floor)) {
+                // cout << "collided" << endl;
             }
 
             // apply new position

@@ -76,10 +76,10 @@ void resolve_dynamic_dynamic (RigidBody &A, RigidBody &B)
     B.future_pos = B.future_pos + B.velocity * B.remaining_velocity;
 }
 
-b4 collide_sphere_cuboid_AABB (RigidBody &A, RigidBody &B)
+b4 collide_sphere_cuboid (RigidBody &A, RigidBody &B)
 {
     /*
-        Source: http://www.metanetsoftware.com/technique/tutorialA.html
+        Source: http://ericleong.me/research/circle-line/
     */
     return false;
 }
